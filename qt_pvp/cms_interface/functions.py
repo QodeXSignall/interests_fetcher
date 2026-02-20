@@ -526,9 +526,41 @@ def find_interests_by_lifting_switches(
                     continue
                 logger.debug(a)
                 cargo_key = a.get("cargo_type", "unknown")
+                io_index = a.get("io_index")
+                atp_str = a.get("atpStr", "")
+                
+                # Fallback: если тип unknown, но есть аларм в разрыве и start_stopped=True,
+                # попробуем определить тип по io_index или использовать дефолтный тип
                 if cargo_key == "unknown":
-                    logger.warning(f"{reg_id}: [GAP ALARM] Unknown cargo type: {cargo_key}")
-                    continue
+                    logger.warning(
+                        f"{reg_id}: [GAP ALARM] Unknown cargo type: io_index={io_index}, atpStr='{atp_str}', "
+                        f"euro_alarm_cfg={euro_alarm_cfg}, kgo_alarm_cfg={kgo_alarm_cfg}"
+                    )
+                    # Попробуем определить тип по io_index, если он совпадает с одним из известных значений
+                    if io_index is not None:
+                        if io_index == euro_alarm_cfg:
+                            cargo_key = "euro"
+                            logger.info(f"{reg_id}: [GAP ALARM] Определен тип 'euro' по io_index={io_index}")
+                        elif kgo_alarm_cfg is not None and io_index == kgo_alarm_cfg:
+                            cargo_key = "kgo"
+                            logger.info(f"{reg_id}: [GAP ALARM] Определен тип 'kgo' по io_index={io_index}")
+                        else:
+                            # Если не совпадает, используем дефолтный тип "euro" как наиболее распространенный
+                            # но только если это действительно аларм подъема (atp 19-22)
+                            atp = a.get("atp")
+                            if atp in (19, 20, 21, 22):
+                                cargo_key = "euro"  # Дефолтный тип для алармов подъема
+                                logger.warning(
+                                    f"{reg_id}: [GAP ALARM] Используем дефолтный тип 'euro' для аларма "
+                                    f"io_index={io_index}, atp={atp}, atpStr='{atp_str}'"
+                                )
+                            else:
+                                logger.warning(f"{reg_id}: [GAP ALARM] Пропускаем аларм с неизвестным типом груза")
+                                continue
+                    else:
+                        logger.warning(f"{reg_id}: [GAP ALARM] Пропускаем аларм: io_index=None")
+                        continue
+                
                 cargo_type_alarm = "Бункер" if cargo_key == "kgo" else "Контейнер"
 
                 delta_last_track_to_alarm_seconds =  (alarm_dt - t_curr).total_seconds()

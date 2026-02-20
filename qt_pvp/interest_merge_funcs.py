@@ -124,6 +124,20 @@ def _merge_two(cur: dict, nxt: dict) -> None:
     """
     Слить два интереса в cur.
     """
+    reg_id = cur.get("reg_id", "UNKNOWN")
+    cur_name = cur.get("name", "unknown")
+    nxt_name = nxt.get("name", "unknown")
+    
+    # Сохраняем исходные временные границы для логирования
+    cur_start_before = cur.get("_start_dt")
+    cur_end_before = cur.get("_end_dt")
+    nxt_start = nxt.get("_start_dt")
+    nxt_end = nxt.get("_end_dt")
+    
+    # Геолокации для проверки
+    geo_cur = (cur.get("report") or {}).get("geo")
+    geo_nxt = (nxt.get("report") or {}).get("geo")
+    
     # временные границы
     cur["beg_sec"] = min(cur["beg_sec"], nxt["beg_sec"])
     cur["end_sec"] = max(cur["end_sec"], nxt["end_sec"])
@@ -173,6 +187,32 @@ def _merge_two(cur: dict, nxt: dict) -> None:
         rep_new["switch_events"] = merged_events
         rep_new["switches_amount"] = len(merged_events)
         cur["report"] = rep_new
+    
+    # Логирование объединения
+    cur_start_after = cur.get("_start_dt")
+    cur_end_after = cur.get("_end_dt")
+    gap_sec = None
+    if cur_end_before and nxt_start:
+        gap_sec = (nxt_start - cur_end_before).total_seconds()
+    
+    cur_start_str = cur_start_before.strftime(DT_FMT) if cur_start_before else "N/A"
+    cur_end_str = cur_end_before.strftime(DT_FMT) if cur_end_before else "N/A"
+    nxt_start_str = nxt_start.strftime(DT_FMT) if nxt_start else "N/A"
+    nxt_end_str = nxt_end.strftime(DT_FMT) if nxt_end else "N/A"
+    cur_start_after_str = cur_start_after.strftime(DT_FMT) if cur_start_after else "N/A"
+    cur_end_after_str = cur_end_after.strftime(DT_FMT) if cur_end_after else "N/A"
+    
+    gap_info = f"Зазор между интересами: {gap_sec:.1f}с" if gap_sec is not None else "Пересекаются"
+    
+    logger.info(
+        f"{reg_id}: [ОБЪЕДИНЕНИЕ ИНТЕРЕСОВ] Объединены интересы '{cur_name}' и '{nxt_name}'. "
+        f"Первый: {cur_start_str} - {cur_end_str}, "
+        f"Второй: {nxt_start_str} - {nxt_end_str}, "
+        f"{gap_info}, "
+        f"Гео первого: {geo_cur}, Гео второго: {geo_nxt}, "
+        f"Результат: {cur_start_after_str} - {cur_end_after_str}, "
+        f"Всего концевиков: {len(merged_events)}"
+    )
 
 
 def _finalize_interest(cur: dict) -> None:
@@ -240,7 +280,31 @@ def merge_overlapping_interests(interests: List[dict]) -> List[dict]:
 
     for nxt in norm[1:]:
         same_reg = cur.get("reg_id") == nxt.get("reg_id")
-        if same_reg and _intervals_touch_or_overlap(cur, nxt):
+        overlaps = _intervals_touch_or_overlap(cur, nxt)
+        
+        if same_reg and overlaps:
+            # Вычисляем зазор для логирования
+            s1, e1 = float(cur["beg_sec"]), float(cur["end_sec"])
+            s2, e2 = float(nxt["beg_sec"]), float(nxt["end_sec"])
+            gap = s2 - e1 if s2 > e1 else 0
+            
+            reg_id = cur.get("reg_id", "UNKNOWN")
+            cur_start_dt = cur.get("_start_dt")
+            cur_end_dt = cur.get("_end_dt")
+            nxt_start_dt = nxt.get("_start_dt")
+            nxt_end_dt = nxt.get("_end_dt")
+            
+            cur_start_str = cur_start_dt.strftime(DT_FMT) if cur_start_dt else "N/A"
+            cur_end_str = cur_end_dt.strftime(DT_FMT) if cur_end_dt else "N/A"
+            nxt_start_str = nxt_start_dt.strftime(DT_FMT) if nxt_start_dt else "N/A"
+            nxt_end_str = nxt_end_dt.strftime(DT_FMT) if nxt_end_dt else "N/A"
+            
+            logger.info(
+                f"{reg_id}: [ОБЪЕДИНЕНИЕ ИНТЕРЕСОВ] Обнаружено пересечение/соприкосновение интересов. "
+                f"Текущий: {cur.get('name', 'unknown')} ({cur_start_str} - {cur_end_str}), "
+                f"Следующий: {nxt.get('name', 'unknown')} ({nxt_start_str} - {nxt_end_str}), "
+                f"Зазор: {gap:.1f}с (eps={CLIP_EPS_SEC}с)"
+            )
             _merge_two(cur, nxt)
         else:
             _finalize_interest(cur)

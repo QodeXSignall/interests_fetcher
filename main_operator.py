@@ -257,7 +257,53 @@ class Main:
                 return {"error": "Loading in progress"}
 
             if isinstance(interests, dict) and "interests" in interests:
-                return interests["interests"]
+                found_interests = interests["interests"]
+                
+                # Fallback: если интересов не найдено, но есть алармы, попробуем создать интересы напрямую из алармов
+                if not found_interests and prepared and isinstance(prepared, dict) and "alarms" in prepared:
+                    logger.info(f"{reg_id}: [FALLBACK] Интересы не найдены основным методом, пробуем поиск напрямую по алармам")
+                    fallback_interests = []
+                    for alarm in prepared["alarms"]:
+                        # Берем только алармы с известным типом груза и start_stopped=True
+                        if alarm.get("start_stopped") and alarm.get("cargo_type") != "unknown":
+                            start_dt = alarm.get("start_dt")
+                            end_dt = alarm.get("end_dt")
+                            cargo_type = alarm.get("cargo_type")
+                            
+                            if start_dt and end_dt:
+                                # Создаем простой интерес из аларма
+                                time_before = (start_dt - datetime.timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
+                                time_after = (end_dt + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                # Используем последний трек для создания интереса, если есть треки
+                                if tracks:
+                                    last_track = tracks[-1]
+                                    interest = cms_api_funcs.get_interest_from_track(
+                                        last_track,
+                                        start_time=time_before,
+                                        end_time=time_after,
+                                        photo_before_timestamp=time_before,
+                                        photo_after_timestamp=time_after,
+                                        reg_id=reg_id,
+                                    )
+                                    interest["report"] = {
+                                        "cargo_type": "Бункер" if cargo_type == "kgo" else "Контейнер",
+                                        "geo": last_track.get("ps"),
+                                        "switches_amount": 1,
+                                        "switch_events": [{
+                                            "datetime": alarm.get("start_str"),
+                                            "switch": alarm.get("io_index"),
+                                            "source": "alarm-fallback"
+                                        }],
+                                    }
+                                    fallback_interests.append(interest)
+                                    logger.info(f"{reg_id}: [FALLBACK] Создан интерес из аларма {alarm.get('start_str')}: {time_before} → {time_after}")
+                    
+                    if fallback_interests:
+                        logger.info(f"{reg_id}: [FALLBACK] Найдено {len(fallback_interests)} интересов через fallback по алармам")
+                        return fallback_interests
+                
+                return found_interests
 
             elif isinstance(interests, dict) and "error" in interests:
                 pulls += 1
