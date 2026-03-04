@@ -8,6 +8,7 @@ from qt_pvp.cms_interface import cms_api
 from qt_pvp import cloud_uploader
 from qt_pvp.logger import logger
 from qt_pvp.data import settings
+from qt_pvp import cms_gate_client
 import posixpath
 import traceback
 import datetime
@@ -190,6 +191,20 @@ class Main:
 
 
     async def get_devices_online(self):
+        """
+        Возвращает список онлайн-устройств.
+
+        Если включён флаг settings.USE_CMS_GATE — берёт список из cms_gate (job list_devices),
+        иначе использует прямой вызов cms_api.get_online_devices, как раньше.
+        """
+        if settings.USE_CMS_GATE:
+            devices = await cms_gate_client.list_devices(status="online")
+            if devices:
+                logger.debug(f"Got devices online from cms_gate: {devices}")
+            else:
+                logger.debug("No devices online from cms_gate.")
+            return devices
+
         devices_online = await cms_api.get_online_devices(self.jsession)
         devices_online = devices_online.json()["onlines"]
         if devices_online:
@@ -225,14 +240,29 @@ class Main:
         while True:
             start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
 
-            tracks_task = asyncio.create_task(cms_api.get_device_track_all_pages_async(
-                self.jsession, reg_id, start_time, stop_time))
-            alarms_task = asyncio.create_task(cms_api.get_device_alarm_all_pages_async(self.jsession, reg_id, start_time, stop_time))
-            tracks, alarm_reports = await asyncio.gather(tracks_task, alarms_task)
-            tracks = [t for page in tracks for t in (page.get("tracks") or [])]
-            all_alarms = []
-            for page in alarm_reports:
-                all_alarms.extend(page.get("alarms") or [])
+            if settings.USE_CMS_GATE:
+                # Берём треки и алармы через cms_gate (REST + Celery)
+                tracks, all_alarms = await cms_gate_client.get_tracks_and_alarms(
+                    reg_id=reg_id,
+                    start_time=start_time,
+                    end_time=stop_time,
+                )
+            else:
+                tracks_task = asyncio.create_task(
+                    cms_api.get_device_track_all_pages_async(
+                        self.jsession, reg_id, start_time, stop_time
+                    )
+                )
+                alarms_task = asyncio.create_task(
+                    cms_api.get_device_alarm_all_pages_async(
+                        self.jsession, reg_id, start_time, stop_time
+                    )
+                )
+                tracks_pages, alarm_reports = await asyncio.gather(tracks_task, alarms_task)
+                tracks = [t for page in tracks_pages for t in (page.get("tracks") or [])]
+                all_alarms = []
+                for page in alarm_reports:
+                    all_alarms.extend(page.get("alarms") or [])
             #for alarm in all_alarms:
             #    print(alarm)
 
@@ -465,12 +495,19 @@ class Main:
                 return None
 
             # 4) скачиваем по одному клипу на канал
-            channels_files_dict = await cms_api.download_single_clip_per_channel(
-                jsession=self.jsession,
-                reg_id=reg_id,
-                interest=interest,
-                channels=final_channels_to_download
-            )
+            if settings.USE_CMS_GATE:
+                channels_files_dict = await cms_gate_client.download_clips_for_interest(
+                    reg_id=reg_id,
+                    interest=interest,
+                    channels=final_channels_to_download,
+                )
+            else:
+                channels_files_dict = await cms_api.download_single_clip_per_channel(
+                    jsession=self.jsession,
+                    reg_id=reg_id,
+                    interest=interest,
+                    channels=final_channels_to_download
+                )
             # оставляем полную структуру для доступа к concat_sources при отладке
             channels_info = channels_files_dict
 
@@ -640,6 +677,16 @@ class Main:
         return upload_status
 
     async def login(self):
+        """
+        Авторизация в CMS.
+
+        При USE_CMS_GATE прямой jsession не нужен, так как все обращения к CMS
+        идут через внешний сервис cms_gate. В этом случае просто обнуляем jsession.
+        """
+        if settings.USE_CMS_GATE:
+            self.jsession = None
+            return
+
         login_result = await cms_api.login()
         self.jsession = login_result.json()["jsession"]
 
@@ -884,8 +931,9 @@ async def _run():
     try:
         await d.mainloop()
     finally:
-        # всегда освобождаем соединения httpx
+        # всегда освобождаем соединения httpx / cms_gate_client
         await cms_http.close_cms_async_client()
+        await cms_gate_client.close_client()
 
 
 if __name__ == "__main__":

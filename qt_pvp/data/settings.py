@@ -42,6 +42,9 @@ qt_rm_password = os.environ.get("qt_rm_password")
 
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 
+# Фича-флаг: использовать ли внешний сервис cms_gate вместо прямых вызовов cms_api.
+USE_CMS_GATE = os.environ.get("USE_CMS_GATE", "").lower() in ("1", "true", "yes")
+
 
 _INTEREST_RE = re.compile(
     r"""

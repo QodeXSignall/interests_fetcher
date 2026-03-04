@@ -16,61 +16,23 @@ END_TIME = "2026-02-20 18:00:00"
 
 inst = Main()
 reg_info = main_funcs.get_reg_info(reg_id=REG_ID)
+
+
 async def local_get_interests_async():
     await inst.login()
-    
-    # Отладочный вывод: получаем алармы напрямую для анализа
-    from qt_pvp.cms_interface import cms_api
-    alarm_reports = await cms_api.get_device_alarm_all_pages_async(inst.jsession, REG_ID, START_TIME, END_TIME)
-    all_alarms = []
-    for page in alarm_reports:
-        all_alarms.extend(page.get("alarms") or [])
-    
-    print(f"\n=== АНАЛИЗ АЛАРМОВ ===")
-    print(f"Всего алармов найдено: {len(all_alarms)}")
-    print(f"Конфигурация регистратора {REG_ID}:")
-    print(f"  euro_container_alarm: {reg_info.get('euro_container_alarm')}")
-    print(f"  kgo_container_alarm: {reg_info.get('kgo_container_alarm')}")
-    print(f"\nПримеры алармов:")
-    for i, alarm in enumerate(all_alarms[:5]):
-        atp_str = alarm.get("atpStr", "")
-        atp = alarm.get("atp")
-        print(f"  Аларм {i+1}: atp={atp}, atpStr='{atp_str}'")
-    
-    # Подготовка алармов
-    from qt_pvp.cms_interface import functions as cms_api_funcs
-    prepared = cms_api_funcs.prepare_alarms(
-        raw_alarms=all_alarms,
-        reg_cfg=reg_info,
-        allowed_atp=frozenset({19, 20, 21, 22}),
-        min_stop_speed_kmh=5.0,
-        merge_gap_sec=15,
-        reg_id=REG_ID
+
+    interests = await inst.get_interests_async(
+        reg_id=REG_ID,
+        reg_info=reg_info,
+        start_time=START_TIME,
+        stop_time=END_TIME,
     )
-    
-    print(f"\nПодготовлено алармов: {len(prepared.get('alarms', []))}")
-    unknown_count = sum(1 for a in prepared.get('alarms', []) if a.get('cargo_type') == 'unknown')
-    euro_count = sum(1 for a in prepared.get('alarms', []) if a.get('cargo_type') == 'euro')
-    kgo_count = sum(1 for a in prepared.get('alarms', []) if a.get('cargo_type') == 'kgo')
-    print(f"  Тип 'unknown': {unknown_count}")
-    print(f"  Тип 'euro': {euro_count}")
-    print(f"  Тип 'kgo': {kgo_count}")
-    
-    if unknown_count > 0:
-        print(f"\nПримеры алармов с типом 'unknown':")
-        for a in prepared.get('alarms', [])[:3]:
-            if a.get('cargo_type') == 'unknown':
-                print(f"  io_index={a.get('io_index')}, atpStr='{a.get('atpStr')}', start={a.get('start_str')}")
-    
-    interests = await inst.get_interests_async(reg_id=REG_ID, reg_info=reg_info, start_time=START_TIME, stop_time=END_TIME)
-    #for interest in interests:
-    #    print(interest)
-    #print("\n")
     interests = merge_overlapping_interests(interests)
     print(f"\n=== РЕЗУЛЬТАТ ===")
     print(f"Найдено интересов: {len(interests)}")
     for interest in interests:
         print(interest)
+
 
 if __name__ == "__main__":
     asyncio.run(local_get_interests_async())
