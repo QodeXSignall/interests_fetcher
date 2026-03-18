@@ -1380,28 +1380,13 @@ async def find_stops_near_sites_by_date(
     start_time = f"{date} 00:00:00"
     end_time = f"{date} 23:59:59"
 
-    # Получаем треки либо через cms_gate, либо напрямую через cms_api
-    if settings.config and settings.config.has_option("DEFAULT", "dummy"):  # заглушка для mypy
-        pass
+    from qt_pvp import cms_gate_client
 
-    if getattr(settings, "USE_CMS_GATE", False):
-        from qt_pvp import cms_gate_client
-
-        tracks_raw, _alarms_unused = await cms_gate_client.get_tracks_and_alarms(
-            reg_id=reg_id,
-            start_time=start_time,
-            end_time=end_time,
-        )
-    else:
-        # Ленивая зависимость, чтобы избежать циклического импорта
-        from qt_pvp.cms_interface import cms_api
-
-        if jsession is None:
-            login_resp = await cms_api.login()
-            jsession = login_resp.json()["jsession"]
-
-        pages = await cms_api.get_device_track_all_pages_async(jsession, reg_id, start_time, end_time)
-        tracks_raw = [t for page in pages for t in (page.get("tracks") or [])]
+    tracks_raw, _alarms_unused = await cms_gate_client.get_tracks_and_alarms(
+        reg_id=reg_id,
+        start_time=start_time,
+        end_time=end_time,
+    )
     logger.info(f"{reg_id}: [STOP SEARCH] tracks_raw={len(tracks_raw)} for {start_time} → {end_time}")
 
     norm_tracks: list[dict] = []

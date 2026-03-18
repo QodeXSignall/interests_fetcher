@@ -10,7 +10,8 @@
             "justMyCode": true,
             "envFile": "${workspaceFolder}/.env",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder}",
+                "CMS_GATE_API_TOKEN": "dev-token"
             }
         },
         {

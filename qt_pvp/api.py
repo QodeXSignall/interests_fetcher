@@ -48,52 +48,12 @@ async def get_all_devices_from_cms(jsession: str) -> list[dict]:
     """Получает список всех устройств (онлайн и оффлайн) из CMS"""
     from qt_pvp.logger import logger
 
-    # Новый путь: через cms_gate
-    if settings.USE_CMS_GATE:
-        try:
-            devices = await cms_gate_client.list_devices(status="all")
-            logger.info(f"[get_all_devices_from_cms] Got {len(devices)} devices from cms_gate")
-            return devices
-        except Exception as e:
-            logger.error(f"[get_all_devices_from_cms] Error getting devices from cms_gate: {e}")
-            return []
-
-    # Старый путь: прямые запросы к CMS через cms_api
-    from qt_pvp.cms_interface import cms_api
-
     try:
-        devices = []
-
-        # Получаем онлайн устройства
-        try:
-            online_resp = await cms_api.get_online_devices(jsession, device_id=None)
-            online_data = online_resp.json()
-            online_devices = online_data.get("onlines", [])
-            devices.extend(online_devices)
-            logger.info(f"[get_all_devices_from_cms] Got {len(online_devices)} online devices")
-        except Exception as e:
-            logger.warning(f"[get_all_devices_from_cms] Failed to get online devices: {e}")
-
-        # Получаем оффлайн устройства
-        try:
-            offline_resp = await cms_api.get_offline_devices(jsession)
-            offline_data = offline_resp.json()
-            # Некоторые CMS возвращают список не в "offlines", а в "onlines" даже для status=0
-            offline_devices = (
-                offline_data.get("offlines")
-                or offline_data.get("onlines")
-                or offline_data.get("devices")
-                or []
-            )
-            devices.extend(offline_devices)
-            logger.info(f"[get_all_devices_from_cms] Got {len(offline_devices)} offline devices")
-        except Exception as e:
-            logger.warning(f"[get_all_devices_from_cms] Failed to get offline devices: {e}")
-
-        logger.info(f"[get_all_devices_from_cms] Total devices: {len(devices)}")
+        devices = await cms_gate_client.list_devices(status="all")
+        logger.info(f"[get_all_devices_from_cms] Got {len(devices)} devices from cms_gate")
         return devices
     except Exception as e:
-        logger.error(f"[get_all_devices_from_cms] Error getting devices from CMS: {e}")
+        logger.error(f"[get_all_devices_from_cms] Error getting devices from cms_gate: {e}")
         return []
 
 
@@ -164,13 +124,7 @@ async def resolve_reg_id(reg_id: Optional[str], car_num: Optional[str], jsession
             logger.info(f"[resolve_reg_id] Found in states.json: {car_num} -> {found_reg_id}")
             return found_reg_id
 
-        # 2) Запрос в CMS (через cms_gate или напрямую)
-        if not settings.USE_CMS_GATE and not jsession:
-            from qt_pvp.cms_interface import cms_api
-
-            login_resp = await cms_api.login()
-            jsession = login_resp.json()["jsession"]
-
+        # 2) Запрос в CMS (через cms_gate)
         found_reg_id = await get_reg_id_by_car_num_cms(car_num, jsession or "")
         if found_reg_id:
             logger.info(f"[resolve_reg_id] Found in CMS: {car_num} -> {found_reg_id}")

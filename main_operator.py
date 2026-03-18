@@ -3,12 +3,11 @@ from qt_pvp.cms_interface import functions as cms_api_funcs
 from qt_pvp.functions import parse_interest_name
 from qt_pvp.qt_rm_client import QTRMAsyncClient
 from qt_pvp import functions as main_funcs
-from qt_pvp.cms_interface import cms_http
-from qt_pvp.cms_interface import cms_api
 from qt_pvp import cloud_uploader
 from qt_pvp.logger import logger
 from qt_pvp.data import settings
 from qt_pvp import cms_gate_client
+from qt_pvp import video_utils
 import posixpath
 import traceback
 import datetime
@@ -191,27 +190,12 @@ class Main:
 
 
     async def get_devices_online(self):
-        """
-        Возвращает список онлайн-устройств.
-
-        Если включён флаг settings.USE_CMS_GATE — берёт список из cms_gate (job list_devices),
-        иначе использует прямой вызов cms_api.get_online_devices, как раньше.
-        """
-        if settings.USE_CMS_GATE:
-            devices = await cms_gate_client.list_devices(status="online")
-            if devices:
-                logger.debug(f"Got devices online from cms_gate: {devices}")
-            else:
-                logger.debug("No devices online from cms_gate.")
-            return devices
-
-        devices_online = await cms_api.get_online_devices(self.jsession)
-        devices_online = devices_online.json()["onlines"]
-        if devices_online:
-            logger.debug(f"Got devices online: {devices_online}")
+        devices = await cms_gate_client.list_devices(status="online")
+        if devices:
+            logger.debug(f"Got devices online from cms_gate: {devices}")
         else:
-            logger.debug("No devices online (empty 'onlines').")
-        return devices_online
+            logger.debug("No devices online from cms_gate.")
+        return devices
 
     async def operate_device(self, reg_id, plate):
         if reg_id in self.devices_in_progress:
@@ -240,29 +224,12 @@ class Main:
         while True:
             start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
 
-            if settings.USE_CMS_GATE:
-                # Берём треки и алармы через cms_gate (REST + Celery)
-                tracks, all_alarms = await cms_gate_client.get_tracks_and_alarms(
-                    reg_id=reg_id,
-                    start_time=start_time,
-                    end_time=stop_time,
-                )
-            else:
-                tracks_task = asyncio.create_task(
-                    cms_api.get_device_track_all_pages_async(
-                        self.jsession, reg_id, start_time, stop_time
-                    )
-                )
-                alarms_task = asyncio.create_task(
-                    cms_api.get_device_alarm_all_pages_async(
-                        self.jsession, reg_id, start_time, stop_time
-                    )
-                )
-                tracks_pages, alarm_reports = await asyncio.gather(tracks_task, alarms_task)
-                tracks = [t for page in tracks_pages for t in (page.get("tracks") or [])]
-                all_alarms = []
-                for page in alarm_reports:
-                    all_alarms.extend(page.get("alarms") or [])
+            # Берём треки и алармы через cms_gate (REST + Celery)
+            tracks, all_alarms = await cms_gate_client.get_tracks_and_alarms(
+                reg_id=reg_id,
+                start_time=start_time,
+                end_time=stop_time,
+            )
             #for alarm in all_alarms:
             #    print(alarm)
 
@@ -413,17 +380,6 @@ class Main:
                     et = await coro
                     if et:
                         end_times.append(et)
-                except cms_api.DeviceOfflineError as err:
-                    logger.debug(f"{reg_id}. Устройство оффлайн, прерываем обработку интересов.")
-
-                    # отменяем все остальные задачи
-                    for t in tasks:
-                        t.cancel()
-
-                    # ждём, пока они корректно завершатся (с подавлением CancelledError)
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                    logger.error(f"{reg_id}. Обработка регистратора завершена.")
-                    return {"error": "Device offline error"}
                 except Exception:
                     logger.error(f"{reg_id}: Ошибка в задаче интереса:\n{traceback.format_exc()}")
         finally:
@@ -494,20 +450,12 @@ class Main:
                 self.del_pending_interest(reg_id, interest_name)
                 return None
 
-            # 4) скачиваем по одному клипу на канал
-            if settings.USE_CMS_GATE:
-                channels_files_dict = await cms_gate_client.download_clips_for_interest(
-                    reg_id=reg_id,
-                    interest=interest,
-                    channels=final_channels_to_download,
-                )
-            else:
-                channels_files_dict = await cms_api.download_single_clip_per_channel(
-                    jsession=self.jsession,
-                    reg_id=reg_id,
-                    interest=interest,
-                    channels=final_channels_to_download
-                )
+            # 4) скачиваем по одному клипу на канал через cms_gate
+            channels_files_dict = await cms_gate_client.download_clips_for_interest(
+                reg_id=reg_id,
+                interest=interest,
+                channels=final_channels_to_download,
+            )
             # оставляем полную структуру для доступа к concat_sources при отладке
             channels_info = channels_files_dict
 
@@ -546,9 +494,9 @@ class Main:
             logger.info(f"Результат загрузки изображений: {ok_frames}")
 
             # 7) чистим локальные клипы (кроме «полного» по нужному каналу)
-            removed = cms_api.delete_videos_except(
+            removed = video_utils.delete_videos_except(
                 videos_by_channel=channels_paths,
-                keep_channel_id=channel_id if not interest_video_exists else None
+                keep_channel_id=channel_id if not interest_video_exists else None,
             )
             all_done_ok = bool(ok_frames) #and (interest_video_exists or full_clip_upload_status))
 
@@ -637,8 +585,7 @@ class Main:
         async def _extract_for_channel(ch: int, path: str | None):
             if not path:
                 return None, None
-            # новая функция, которая возвращает (('chX_first.jpg', bytes) | None, ('chX_last.jpg', bytes) | None)
-            return await cms_api.extract_edge_frames_bytes(
+            return await video_utils.extract_edge_frames_bytes(
                 video_path=path,
                 channel_id=ch,
                 reg_id=reg_id,
@@ -678,17 +625,10 @@ class Main:
 
     async def login(self):
         """
-        Авторизация в CMS.
-
-        При USE_CMS_GATE прямой jsession не нужен, так как все обращения к CMS
-        идут через внешний сервис cms_gate. В этом случае просто обнуляем jsession.
+        Авторизация в CMS больше не требуется напрямую, так как все обращения
+        к CMS идут через внешний сервис cms_gate.
         """
-        if settings.USE_CMS_GATE:
-            self.jsession = None
-            return
-
-        login_result = await cms_api.login()
-        self.jsession = login_result.json()["jsession"]
+        self.jsession = None
 
     async def mainloop(self):
         logger.info("Mainloop has been launched with success.")
@@ -931,8 +871,7 @@ async def _run():
     try:
         await d.mainloop()
     finally:
-        # всегда освобождаем соединения httpx / cms_gate_client
-        await cms_http.close_cms_async_client()
+        # всегда освобождаем соединения cms_gate_client
         await cms_gate_client.close_client()
 
 

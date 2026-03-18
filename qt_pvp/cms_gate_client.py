@@ -62,7 +62,7 @@ async def submit_job(job_type: str, payload: Dict[str, Any]) -> str:
     client = _get_client()
     url = f"{_get_base_url()}/jobs/{job_type}"
     logger.debug(f"[cms_gate_client] submit_job {job_type} -> {url}")
-    resp = await client.post(url, json={"payload": payload}, headers=_auth_headers())
+    resp = await client.post(url, json=payload, headers=_auth_headers())
     if resp.status_code >= 400:
         logger.error(
             f"[cms_gate_client] submit_job {job_type} failed "

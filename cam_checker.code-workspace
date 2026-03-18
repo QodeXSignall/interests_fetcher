@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../cam_checker"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../cms_gate"
+		}
+	],
+	"settings": {}
+}
