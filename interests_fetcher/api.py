@@ -230,8 +230,14 @@ class CompareRequest(BaseModel):
 
 
 class InterestRequest(BaseModel):
-    reg_id: Optional[str] = Field(None, description="DevIDNO регистратора")
-    car_num: Optional[str] = Field(None, description="Госномер автомобиля")
+    reg_id: Optional[str] = Field(
+        None,
+        description="DevIDNO регистратора. Приоритетный параметр: если передан, car_num игнорируется.",
+    )
+    car_num: Optional[str] = Field(
+        None,
+        description="Госномер автомобиля. Используется только если reg_id не передан.",
+    )
     start_time: str = Field(..., description="YYYY-MM-DD HH:MM:SS")
     end_time: str = Field(..., description="YYYY-MM-DD HH:MM:SS")
     merge_overlaps: bool = True
@@ -328,7 +334,16 @@ async def compare_interests(req: CompareRequest, authorized: bool = Depends(veri
     }
 
 
-@app.post("/get-interests")
+@app.post(
+    "/get-interests",
+    summary="Получить интересы за интервал",
+    description=(
+        "Принимает один из параметров идентификации: reg_id или car_num. "
+        "Если передан reg_id, используется он (приоритет). "
+        "Если reg_id не передан, выполняется разрешение по car_num. "
+        "Если переданы оба, car_num игнорируется."
+    ),
+)
 async def get_interests_api(req: InterestRequest, authorized: bool = Depends(verify_api_key)):
     m = await _get_main_logged_in()
     reg_id = await resolve_reg_id(req.reg_id, req.car_num)

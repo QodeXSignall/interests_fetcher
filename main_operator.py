@@ -25,6 +25,7 @@ class Main:
         self._global_interests_sem = None
         self._per_device_sem = {}
         self._devices_sem = None
+        self._last_devices_online = []
         self._interest_refill_in_progress = set()
         self.qt_rm_client = QTRMAsyncClient(
             base_url=settings.qt_rm_url,
@@ -190,12 +191,21 @@ class Main:
 
 
     async def get_devices_online(self):
-        devices = await cms_gate_client.list_devices(status="online")
-        if devices:
-            logger.debug(f"Got devices online from cms_gate: {devices}")
-        else:
-            logger.debug("No devices online from cms_gate.")
-        return devices
+        try:
+            devices = await cms_gate_client.list_devices(status="online", timeout_sec=180.0)
+            if devices:
+                logger.debug(f"Got devices online from cms_gate: {devices}")
+            else:
+                logger.debug("No devices online from cms_gate.")
+            self._last_devices_online = devices
+            return devices
+        except TimeoutError as e:
+            fallback_count = len(self._last_devices_online or [])
+            logger.warning(
+                f"list_devices timeout in cms_gate: {e}. "
+                f"Using last known online devices ({fallback_count})."
+            )
+            return self._last_devices_online or []
 
     async def operate_device(self, reg_id, plate):
         if reg_id in self.devices_in_progress:

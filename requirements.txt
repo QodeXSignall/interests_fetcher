@@ -10,3 +10,4 @@ httpx
 pygments
 fastapi
 uvicorn
+python-dotenv

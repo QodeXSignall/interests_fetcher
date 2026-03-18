@@ -89,7 +89,9 @@ async def wait_for_job(
 
     client = _get_client()
     url = f"{_get_base_url()}/jobs/{job_id}"
-    end_ts = asyncio.get_event_loop().time() + timeout_sec
+    loop = asyncio.get_running_loop()
+    end_ts = loop.time() + timeout_sec
+    last_status: str | None = None
 
     while True:
         resp = await client.get(url, headers=_auth_headers())
@@ -104,6 +106,7 @@ async def wait_for_job(
         status = body.get("status")
         result = body.get("result")
         error = body.get("error")
+        last_status = status
 
         if status in ("success", "failure"):
             if status == "failure":
@@ -112,22 +115,48 @@ async def wait_for_job(
                 raise RuntimeError(f"cms_gate job {job_id} returned non-dict result: {result!r}")
             return result
 
-        if asyncio.get_event_loop().time() >= end_ts:
-            raise TimeoutError(f"Timeout waiting for cms_gate job {job_id}")
+        if loop.time() >= end_ts:
+            raise TimeoutError(
+                f"Timeout waiting for cms_gate job {job_id}; "
+                f"last_status={last_status!r}; timeout_sec={timeout_sec}"
+            )
 
         await asyncio.sleep(poll_interval_sec)
 
 
-async def list_devices(status: str = "all") -> List[Dict[str, Any]]:
+async def list_devices(status: str = "all", timeout_sec: float = 180.0) -> List[Dict[str, Any]]:
     """
-    Обёртка над job_type=list_devices.
+    Получает список устройств напрямую через GET /devices (без Celery job).
+    Если прямой вызов недоступен (старый cms_gate), делает fallback на job API.
     """
+    client = _get_client()
+    normalized_status = (status or "all").lower()
+    url = f"{_get_base_url()}/devices"
+    try:
+        resp = await client.get(
+            url,
+            params={"status": normalized_status},
+            headers=_auth_headers(),
+            timeout=timeout_sec,
+        )
+        if resp.status_code < 400:
+            body = resp.json()
+            devices = body.get("devices") or []
+            if not isinstance(devices, list):
+                raise RuntimeError(f"Unexpected devices type from cms_gate direct API: {type(devices)}")
+            return devices  # type: ignore[return-value]
+        logger.warning(
+            f"[cms_gate_client] direct list_devices failed status={resp.status_code}; "
+            f"fallback to job API"
+        )
+    except Exception as e:
+        logger.warning(f"[cms_gate_client] direct list_devices request error: {e}; fallback to job API")
 
-    job_id = await submit_job("list_devices", {"status": status})
-    res = await wait_for_job(job_id)
+    job_id = await submit_job("list_devices", {"status": normalized_status})
+    res = await wait_for_job(job_id, timeout_sec=timeout_sec)
     devices = res.get("devices") or []
     if not isinstance(devices, list):
-        raise RuntimeError(f"Unexpected devices type from cms_gate: {type(devices)}")
+        raise RuntimeError(f"Unexpected devices type from cms_gate job API: {type(devices)}")
     return devices  # type: ignore[return-value]
 
 
@@ -158,14 +187,31 @@ async def get_tracks_and_alarms(
 
 async def get_device_status(reg_id: str) -> Dict[str, Any]:
     """
-    Обёртка над job_type=device_status.
+    Получает статус устройства напрямую через GET /devices/{reg_id}/status.
+    Если прямой вызов недоступен (старый cms_gate), делает fallback на job API.
     """
+    client = _get_client()
+    url = f"{_get_base_url()}/devices/{reg_id}/status"
+    try:
+        resp = await client.get(url, headers=_auth_headers())
+        if resp.status_code < 400:
+            body = resp.json()
+            device = body.get("device") or {}
+            if not isinstance(device, dict):
+                raise RuntimeError(f"Unexpected device type from cms_gate direct API: {type(device)}")
+            return device  # type: ignore[return-value]
+        logger.warning(
+            f"[cms_gate_client] direct device_status failed status={resp.status_code}; "
+            f"fallback to job API"
+        )
+    except Exception as e:
+        logger.warning(f"[cms_gate_client] direct device_status request error: {e}; fallback to job API")
 
     job_id = await submit_job("device_status", {"reg_id": reg_id})
     res = await wait_for_job(job_id)
     device = res.get("device") or {}
     if not isinstance(device, dict):
-        raise RuntimeError(f"Unexpected device type from cms_gate: {type(device)}")
+        raise RuntimeError(f"Unexpected device type from cms_gate job API: {type(device)}")
     return device  # type: ignore[return-value]
 
 
