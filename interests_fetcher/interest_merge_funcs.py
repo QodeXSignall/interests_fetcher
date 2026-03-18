@@ -101,6 +101,10 @@ def _normalize_interest(interest: dict) -> dict:
     d["_end_dt"] = _get_end_dt(d)
     d["_pb_dt"] = _get_photo_before_dt(d)
     d["_pa_dt"] = _get_photo_after_dt(d)
+    # Имена исходных интересов, из которых собран итоговый интервал.
+    # Нужно для корректного удаления из pending_interests после merge.
+    source_name = d.get("name")
+    d["_source_names"] = [source_name] if isinstance(source_name, str) and source_name else []
 
     # гарантируем наличие beg_sec / end_sec
     if "beg_sec" not in d or d["beg_sec"] is None:
@@ -115,9 +119,12 @@ def _intervals_touch_or_overlap(a: dict, b: dict, eps: float = CLIP_EPS_SEC) -> 
     """
     True, если интервалы пересекаются или соприкасаются с допуском eps.
     """
-    s1, e1 = float(a["beg_sec"]), float(a["end_sec"])
-    s2, e2 = float(b["beg_sec"]), float(b["end_sec"])
-    return not (s2 > e1 + eps or s1 > e2 + eps)
+    eps_delta = datetime.timedelta(seconds=float(eps))
+    a_start = a.get("_start_dt") or _get_start_dt(a)
+    a_end = a.get("_end_dt") or _get_end_dt(a)
+    b_start = b.get("_start_dt") or _get_start_dt(b)
+    b_end = b.get("_end_dt") or _get_end_dt(b)
+    return not (b_start > a_end + eps_delta or a_start > b_end + eps_delta)
 
 
 def _merge_two(cur: dict, nxt: dict) -> None:
@@ -187,6 +194,15 @@ def _merge_two(cur: dict, nxt: dict) -> None:
         rep_new["switch_events"] = merged_events
         rep_new["switches_amount"] = len(merged_events)
         cur["report"] = rep_new
+
+    # Сохраняем имена всех исходных интересов для последующего удаления из pending.
+    merged_names = []
+    seen_names = set()
+    for nm in (cur.get("_source_names") or []) + (nxt.get("_source_names") or []):
+        if isinstance(nm, str) and nm and nm not in seen_names:
+            merged_names.append(nm)
+            seen_names.add(nm)
+    cur["_source_names"] = merged_names
     
     # Логирование объединения
     cur_start_after = cur.get("_start_dt")
@@ -284,14 +300,14 @@ def merge_overlapping_interests(interests: List[dict]) -> List[dict]:
         
         if same_reg and overlaps:
             # Вычисляем зазор для логирования
-            s1, e1 = float(cur["beg_sec"]), float(cur["end_sec"])
-            s2, e2 = float(nxt["beg_sec"]), float(nxt["end_sec"])
-            gap = s2 - e1 if s2 > e1 else 0
+            cur_end_dt = cur.get("_end_dt")
+            nxt_start_dt = nxt.get("_start_dt")
+            gap = 0.0
+            if isinstance(cur_end_dt, datetime.datetime) and isinstance(nxt_start_dt, datetime.datetime):
+                gap = max(0.0, (nxt_start_dt - cur_end_dt).total_seconds())
             
             reg_id = cur.get("reg_id", "UNKNOWN")
             cur_start_dt = cur.get("_start_dt")
-            cur_end_dt = cur.get("_end_dt")
-            nxt_start_dt = nxt.get("_start_dt")
             nxt_end_dt = nxt.get("_end_dt")
             
             cur_start_str = cur_start_dt.strftime(DT_FMT) if cur_start_dt else "N/A"

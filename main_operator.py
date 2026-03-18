@@ -418,7 +418,7 @@ class Main:
 
             if not cloud_paths:
                 logger.error(f"{reg_id}: Не удалось создать папки для {interest_name}. Пропускаем интерес.")
-                self.del_pending_interest(reg_id, interest_name)
+                self.del_pending_interest(reg_id, interest)
                 return interest["end_time"]
 
             interest_cloud_folder = cloud_paths["interest_folder_path"]
@@ -457,7 +457,7 @@ class Main:
 
             if not final_channels_to_download:
                 logger.info("Нечего скачивать, все материалы уже есть в облаке.")
-                self.del_pending_interest(reg_id, interest_name)
+                self.del_pending_interest(reg_id, interest)
                 return None
 
             # 4) скачиваем по одному клипу на канал через cms_gate
@@ -524,7 +524,7 @@ class Main:
                     asyncio.create_task(
                         self.qt_rm_client.recognize_webdav(interest_name=interest_name)
                     )
-                self.del_pending_interest(reg_id, interest_name)
+                self.del_pending_interest(reg_id, interest)
                 total_src_removed = 0
                 for ch, info in channels_info.items():
                     sources = (info or {}).get("concat_sources") or []
@@ -556,12 +556,38 @@ class Main:
 
         return interest["end_time"]
 
-    def del_pending_interest(self, reg_id, interest_name):
-        logger.info(f"{reg_id}: Удаляем pending interest: {interest_name}")
-        try:
-            main_funcs.remove_pending_interest(reg_id, interest_name)
-        except Exception as e:
-            logger.warning(f"{reg_id}: Не удалось удалить {interest_name} из pending_interests: {e}")
+    def del_pending_interest(self, reg_id, interest_or_name):
+        names_to_remove = []
+        if isinstance(interest_or_name, dict):
+            merged_name = interest_or_name.get("name")
+            if isinstance(merged_name, str) and merged_name:
+                names_to_remove.append(merged_name)
+            source_names = interest_or_name.get("_source_names") or []
+            if isinstance(source_names, list):
+                for nm in source_names:
+                    if isinstance(nm, str) and nm:
+                        names_to_remove.append(nm)
+        elif isinstance(interest_or_name, str) and interest_or_name:
+            names_to_remove.append(interest_or_name)
+
+        # Стабильный порядок + дедуп
+        unique_names = []
+        seen = set()
+        for nm in names_to_remove:
+            if nm not in seen:
+                unique_names.append(nm)
+                seen.add(nm)
+
+        if not unique_names:
+            logger.warning(f"{reg_id}: del_pending_interest вызван без валидного имени интереса: {interest_or_name!r}")
+            return
+
+        for nm in unique_names:
+            logger.info(f"{reg_id}: Удаляем pending interest: {nm}")
+            try:
+                main_funcs.remove_pending_interest(reg_id, nm)
+            except Exception as e:
+                logger.warning(f"{reg_id}: Не удалось удалить {nm} из pending_interests: {e}")
 
 
     async def get_channels_to_download_pics(self, interest_cloud_path):
