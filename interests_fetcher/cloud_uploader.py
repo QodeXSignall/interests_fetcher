@@ -18,6 +18,30 @@ import os
 
 LIST_TTL  = getattr(settings, "WEBDAV_LIST_TTL", 20)   # сек
 CHECK_TTL = getattr(settings, "WEBDAV_CHECK_TTL", 60)  # сек
+WEBDAV_META_RETRIES = int(getattr(settings, "WEBDAV_META_RETRIES", 4))
+WEBDAV_META_BASE_DELAY_SEC = float(getattr(settings, "WEBDAV_META_BASE_DELAY_SEC", 0.6))
+
+
+async def _webdav_call_with_retries(func, op_name: str, target: str):
+    """
+    Унифицированный retry для коротких мета-операций WebDAV (list/check).
+    Держим его в async-слое, а блокирующий webdav3-вызов уводим в thread.
+    """
+    last_exc = None
+    for attempt in range(1, WEBDAV_META_RETRIES + 1):
+        try:
+            return await asyncio.to_thread(func, target)
+        except Exception as e:
+            last_exc = e
+            if attempt >= WEBDAV_META_RETRIES:
+                break
+            sleep_for = WEBDAV_META_BASE_DELAY_SEC * (2 ** (attempt - 1)) + random.uniform(0, 0.25)
+            logger.warning(
+                f"[WEBDAV][{op_name}] fail {attempt}/{WEBDAV_META_RETRIES} for '{target}': {e}. "
+                f"retry in {sleep_for:.2f}s"
+            )
+            await asyncio.sleep(sleep_for)
+    raise last_exc if last_exc else RuntimeError(f"[WEBDAV][{op_name}] unknown error for '{target}'")
 
 async def aupload_dict_as_json_to_cloud(data: dict,
                                         remote_folder_path: str,
@@ -148,8 +172,8 @@ async def cached_list(client, folder: str):
     cached = await meta_cache.get(key)
     if cached is not None:
         return cached
-    # webdav3: client.list может кидать исключения — пробрасываем
-    items = client.list(folder) or []
+    # webdav3: client.list может кидать таймауты/сетевые ошибки, делаем retry.
+    items = (await _webdav_call_with_retries(client.list, "list", folder)) or []
     await meta_cache.set(key, items, LIST_TTL)
     return items
 
@@ -158,7 +182,7 @@ async def cached_check(client, path: str) -> bool:
     cached = await meta_cache.get(key)
     if cached is not None:
         return cached
-    ok = bool(client.check(path))
+    ok = bool(await _webdav_call_with_retries(client.check, "check", path))
     await meta_cache.set(key, ok, CHECK_TTL)
     return ok
 
