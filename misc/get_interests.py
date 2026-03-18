@@ -1,5 +1,5 @@
-from  qt_pvp.interest_merge_funcs import merge_overlapping_interests
-from qt_pvp import functions as main_funcs
+from  interests_fetcher.interest_merge_funcs import merge_overlapping_interests
+from interests_fetcher import functions as main_funcs
 from main_operator import Main
 import asyncio
 

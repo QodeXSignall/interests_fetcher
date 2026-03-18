@@ -7,5 +7,5 @@ cd "$(dirname "$0")"
 source .venv/bin/activate
 
 # Запускаем FastAPI с uvicorn
-python -m uvicorn qt_pvp.api:app --host 0.0.0.0 --port 8001 --env-file .env
+python -m uvicorn interests_fetcher.api:app --host 0.0.0.0 --port 8001 --env-file .env
 

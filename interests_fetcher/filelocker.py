@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 # --- Resolve settings.states path -------------------------------------------------
 # Пытаемся взять путь к states из твоего settings. Если не выйдет — используем env/дефолт.
 
-from qt_pvp.data import settings as _settings
+from interests_fetcher.data import settings as _settings
 
 if _settings and getattr(_settings, "states", None):
     STATES_PATH = _settings.states

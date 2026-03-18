@@ -1,5 +1,5 @@
 from main_operator import Main
-from qt_pvp.functions import get_reg_info
+from interests_fetcher.functions import get_reg_info
 
 def get_interests(reg_id, time_start, time_end):
     t = Main()

@@ -380,7 +380,7 @@ class QTRMAsyncClient:
         return self._access_token
 
 import asyncio
-from qt_pvp.data import settings
+from interests_fetcher.data import settings
 
 async def main():
     async with QTRMAsyncClient(

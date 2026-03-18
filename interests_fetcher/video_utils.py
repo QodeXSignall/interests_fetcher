@@ -6,8 +6,8 @@ from typing import Tuple
 
 import cv2
 
-from qt_pvp.logger import logger
-from qt_pvp.cms_interface import limits
+from interests_fetcher.logger import logger
+from interests_fetcher.cms_interface import limits
 
 
 def _grab_frame_ffmpeg_to_bytes(input_path: str, mode: str) -> bytes | None:

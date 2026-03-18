@@ -1,6 +1,6 @@
 # limits.py
-from qt_pvp.data.settings import config
-from qt_pvp.logger import logger
+from interests_fetcher.data.settings import config
+from interests_fetcher.logger import logger
 from typing import Dict
 import asyncio
 

@@ -2,7 +2,7 @@
 
 from logging.handlers import TimedRotatingFileHandler
 from logging import Formatter
-from qt_pvp.data import settings
+from interests_fetcher.data import settings
 import logging
 import time
 import os

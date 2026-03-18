@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from qt_pvp.logger import logger
+from interests_fetcher.logger import logger
 
 
 _client: Optional[httpx.AsyncClient] = None

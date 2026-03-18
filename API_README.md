@@ -1,4 +1,4 @@
-# Qt PVP REST API
+# interests_fetcher REST API
 
 ## Авторизация
 

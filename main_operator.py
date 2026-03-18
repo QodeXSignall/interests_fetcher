@@ -1,13 +1,13 @@
-from qt_pvp.interest_merge_funcs import merge_overlapping_interests
-from qt_pvp.cms_interface import functions as cms_api_funcs
-from qt_pvp.functions import parse_interest_name
-from qt_pvp.qt_rm_client import QTRMAsyncClient
-from qt_pvp import functions as main_funcs
-from qt_pvp import cloud_uploader
-from qt_pvp.logger import logger
-from qt_pvp.data import settings
-from qt_pvp import cms_gate_client
-from qt_pvp import video_utils
+from interests_fetcher.interest_merge_funcs import merge_overlapping_interests
+from interests_fetcher.cms_interface import functions as cms_api_funcs
+from interests_fetcher.functions import parse_interest_name
+from interests_fetcher.qt_rm_client import QTRMAsyncClient
+from interests_fetcher import functions as main_funcs
+from interests_fetcher import cloud_uploader
+from interests_fetcher.logger import logger
+from interests_fetcher.data import settings
+from interests_fetcher import cms_gate_client
+from interests_fetcher import video_utils
 import posixpath
 import traceback
 import datetime

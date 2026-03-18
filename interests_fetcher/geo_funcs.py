@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-from qt_pvp.data import settings
+from interests_fetcher.data import settings
 import math
 import json
 

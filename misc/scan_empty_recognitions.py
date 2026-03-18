@@ -13,8 +13,8 @@ REPORT_PATH = os.path.join(PROJECT_ROOT, "report.txt")
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from webdav3.exceptions import RemoteResourceNotFound
 
-from qt_pvp.data import settings
-from qt_pvp import cloud_uploader, functions as main_funcs
+from interests_fetcher.data import settings
+from interests_fetcher import cloud_uploader, functions as main_funcs
 import datetime
 
 # Файлы отчёта распознавалки, которые пробуем искать внутри папки интереса.

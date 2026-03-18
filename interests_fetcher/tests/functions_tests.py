@@ -1,6 +1,6 @@
 from datetime import timedelta
-from qt_pvp import functions
-from qt_pvp.data import settings
+from interests_fetcher import functions
+from interests_fetcher.data import settings
 import datetime
 import unittest
 

@@ -1,5 +1,5 @@
 from typing import List, Optional
-from qt_pvp import functions as main_funcs
+from interests_fetcher import functions as main_funcs
 import datetime
 import logging
 

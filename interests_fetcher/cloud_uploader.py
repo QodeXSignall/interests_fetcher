@@ -1,10 +1,10 @@
 from webdav3.exceptions import RemoteResourceNotFound
-from qt_pvp.meta_cache import meta_cache
+from interests_fetcher.meta_cache import meta_cache
 from webdav3.client import Client
-from qt_pvp.logger import logger
+from interests_fetcher.logger import logger
 from urllib.parse import quote
-from qt_pvp.data import settings
-from qt_pvp import functions
+from interests_fetcher.data import settings
+from interests_fetcher import functions
 import traceback
 import posixpath
 import requests

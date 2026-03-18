@@ -3,11 +3,11 @@ import configparser
 import posixpath
 import re
 
-_top_pkg = (__package__ or "qt_pvp").split(".", 1)[0]
+_top_pkg = (__package__ or "interests_fetcher").split(".", 1)[0]
 spec = importlib.util.find_spec(_top_pkg)
 if not spec or not spec.origin:
     raise RuntimeError(f"Не найден пакет {_top_pkg}")
-CUR_DIR = os.path.dirname(spec.origin)  # путь к .../qt_pvp
+CUR_DIR = os.path.dirname(spec.origin)  # путь к .../interests_fetcher
 
 OUTPUT_FOLDER = os.path.join(CUR_DIR, "output")
 INPUT_FOLDER = os.path.join(CUR_DIR, "input")
@@ -30,13 +30,32 @@ config = configparser.ConfigParser(
 config.read(CONFIG_PATH, encoding="utf-8")
 
 
-cms_host = f"{config.get('CMS', 'schema')}{config.get('CMS', 'ip')}:" \
-           f"{config.getint('CMS', 'port')}"
+def _cfg_get(section: str, key: str, fallback: str = "") -> str:
+    if not config.has_section(section):
+        return fallback
+    return config.get(section, key, fallback=fallback)
+
+
+def _cfg_getint(section: str, key: str, fallback: int) -> int:
+    if not config.has_section(section):
+        return fallback
+    return config.getint(section, key, fallback=fallback)
+
+
+# Legacy CMS vars are kept for backward compatibility only.
+# The primary integration path is cms_gate via CMS_GATE_BASE_URL.
+cms_host = os.environ.get("CMS_HOST", "").rstrip("/")
+if not cms_host:
+    schema = _cfg_get("CMS", "schema", "")
+    ip = _cfg_get("CMS", "ip", "")
+    port = _cfg_getint("CMS", "port", 0)
+    if schema and ip and port:
+        cms_host = f"{schema}{ip}:{port}"
 cms_login = os.environ.get("cms_login")
 cms_password = os.environ.get("cms_password")
 
-qt_rm_url = (f"{config.get('QT_RM', 'schema')}{config.get('QT_RM', 'host')}:"
-             f"{config.get('QT_RM', 'port')}")
+qt_rm_url = (f"{_cfg_get('QT_RM', 'schema')}{_cfg_get('QT_RM', 'host')}:"
+             f"{_cfg_get('QT_RM', 'port')}")
 qt_rm_login = os.environ.get("qt_rm_login")
 qt_rm_password = os.environ.get("qt_rm_password")
 

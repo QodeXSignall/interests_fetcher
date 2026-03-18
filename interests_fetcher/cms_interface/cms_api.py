@@ -1,10 +1,10 @@
 from typing import Iterable, List, Dict, Tuple, Any
-from qt_pvp.cms_interface import functions
-from qt_pvp import functions as core_funcs
-from qt_pvp.cms_interface import cms_http
-from qt_pvp.cms_interface import limits
-from qt_pvp.logger import logger
-from qt_pvp.data import settings
+from interests_fetcher.cms_interface import functions
+from interests_fetcher import functions as core_funcs
+from interests_fetcher.cms_interface import cms_http
+from interests_fetcher.cms_interface import limits
+from interests_fetcher.logger import logger
+from interests_fetcher.data import settings
 from httpx import Response
 import subprocess
 import datetime

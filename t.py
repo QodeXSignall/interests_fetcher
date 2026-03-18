@@ -1,4 +1,4 @@
-from qt_pvp.data import settings
+from interests_fetcher.data import settings
 from datetime import timedelta
 import datetime
 

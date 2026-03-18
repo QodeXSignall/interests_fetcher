@@ -9,11 +9,11 @@ from pydantic import BaseModel, Field, validator
 from webdav3.client import Client
 from webdav3.exceptions import RemoteResourceNotFound
 
-from qt_pvp import functions as main_funcs
-from qt_pvp.interest_merge_funcs import merge_overlapping_interests
-from qt_pvp.cms_interface import functions as cms_funcs
-from qt_pvp.data import settings
-from qt_pvp import cms_gate_client
+from interests_fetcher import functions as main_funcs
+from interests_fetcher.interest_merge_funcs import merge_overlapping_interests
+from interests_fetcher.cms_interface import functions as cms_funcs
+from interests_fetcher.data import settings
+from interests_fetcher import cms_gate_client
 from main_operator import Main
 
 
@@ -44,9 +44,9 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
     return True
 
 
-async def get_all_devices_from_cms(jsession: str) -> list[dict]:
-    """Получает список всех устройств (онлайн и оффлайн) из CMS"""
-    from qt_pvp.logger import logger
+async def get_all_devices_from_cms() -> list[dict]:
+    """Получает список всех устройств (онлайн и оффлайн) через cms_gate"""
+    from interests_fetcher.logger import logger
 
     try:
         devices = await cms_gate_client.list_devices(status="all")
@@ -60,7 +60,7 @@ async def get_all_devices_from_cms(jsession: str) -> list[dict]:
 def get_reg_id_by_car_num_local(car_num: str) -> Optional[str]:
     """Поиск reg_id по госномеру машины в states.json"""
     try:
-        from qt_pvp.data import settings
+        from interests_fetcher.data import settings
         import json
         
         with open(settings.states, 'r', encoding='utf-8') as f:
@@ -80,9 +80,9 @@ def get_reg_id_by_car_num_local(car_num: str) -> Optional[str]:
         return None
 
 
-async def get_reg_id_by_car_num_cms(car_num: str, jsession: str) -> Optional[str]:
-    """Поиск reg_id по госномеру через CMS API"""
-    devices = await get_all_devices_from_cms(jsession)
+async def get_reg_id_by_car_num_cms(car_num: str) -> Optional[str]:
+    """Поиск reg_id по госномеру через cms_gate API"""
+    devices = await get_all_devices_from_cms()
     
     search_plate = car_num.upper().replace(' ', '').replace('-', '')
     
@@ -110,9 +110,9 @@ async def get_reg_id_by_car_num_cms(car_num: str, jsession: str) -> Optional[str
     return None
 
 
-async def resolve_reg_id(reg_id: Optional[str], car_num: Optional[str], jsession: Optional[str] = None) -> str:
-    """Определяет reg_id из reg_id или car_num (сначала локально, затем через CMS)"""
-    from qt_pvp.logger import logger
+async def resolve_reg_id(reg_id: Optional[str], car_num: Optional[str]) -> str:
+    """Определяет reg_id из reg_id или car_num (сначала локально, затем через cms_gate)"""
+    from interests_fetcher.logger import logger
     
     if reg_id:
         return reg_id
@@ -124,10 +124,10 @@ async def resolve_reg_id(reg_id: Optional[str], car_num: Optional[str], jsession
             logger.info(f"[resolve_reg_id] Found in states.json: {car_num} -> {found_reg_id}")
             return found_reg_id
 
-        # 2) Запрос в CMS (через cms_gate)
-        found_reg_id = await get_reg_id_by_car_num_cms(car_num, jsession or "")
+        # 2) Запрос через cms_gate
+        found_reg_id = await get_reg_id_by_car_num_cms(car_num)
         if found_reg_id:
-            logger.info(f"[resolve_reg_id] Found in CMS: {car_num} -> {found_reg_id}")
+            logger.info(f"[resolve_reg_id] Found via cms_gate: {car_num} -> {found_reg_id}")
             return found_reg_id
         
         # 3) Last fallback: используем сам car_num как reg_id (может совпадать с DevIDNO)
@@ -279,12 +279,11 @@ class StopsRequest(BaseModel):
         return v
 
 
-app = FastAPI(title="qt_pvp API")
+app = FastAPI(title="interests_fetcher API")
 
 
 async def _get_main_logged_in() -> Main:
     m = Main()
-    await m.login()
     return m
 
 
@@ -293,9 +292,8 @@ async def compare_interests(req: CompareRequest, authorized: bool = Depends(veri
     _validate_webdav_options()
     client = Client(WEBDAV_OPTIONS)
 
-    # Логинимся в CMS для resolve и дальнейших запросов
     m = await _get_main_logged_in()
-    reg_id = await resolve_reg_id(req.reg_id, req.car_num, m.jsession)
+    reg_id = await resolve_reg_id(req.reg_id, req.car_num)
     reg_info = main_funcs.get_reg_info(reg_id) or {}
     plate = reg_info.get("plate") or reg_id
 
@@ -333,7 +331,7 @@ async def compare_interests(req: CompareRequest, authorized: bool = Depends(veri
 @app.post("/get-interests")
 async def get_interests_api(req: InterestRequest, authorized: bool = Depends(verify_api_key)):
     m = await _get_main_logged_in()
-    reg_id = await resolve_reg_id(req.reg_id, req.car_num, m.jsession)
+    reg_id = await resolve_reg_id(req.reg_id, req.car_num)
     reg_info_full = main_funcs.get_reg_info(reg_id)
     interests = await m.get_interests_async(
         reg_id=reg_id,
@@ -349,18 +347,17 @@ async def get_interests_api(req: InterestRequest, authorized: bool = Depends(ver
 @app.post("/find-stops")
 async def find_stops_api(req: StopsRequest, authorized: bool = Depends(verify_api_key)):
     m = await _get_main_logged_in()
-    reg_id = await resolve_reg_id(req.reg_id, req.car_num, m.jsession)
+    reg_id = await resolve_reg_id(req.reg_id, req.car_num)
     res = await cms_funcs.find_stops_near_sites_by_date(
         reg_id=reg_id,
         sites=[s.dict() for s in req.sites],
         date=req.date,
         radius_m=req.radius_m,
-        jsession=m.jsession,
     )
     return res
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("qt_pvp.api:app", host="0.0.0.0", port=8001, reload=False)
+    uvicorn.run("interests_fetcher.api:app", host="0.0.0.0", port=8001, reload=False)
 

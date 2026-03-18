@@ -1,8 +1,8 @@
 from typing import Optional, Dict, Any, List, Tuple
-from qt_pvp.functions import get_reg_info
-from qt_pvp import geo_funcs
-from qt_pvp.logger import logger
-from qt_pvp.data import settings
+from interests_fetcher.functions import get_reg_info
+from interests_fetcher import geo_funcs
+from interests_fetcher.logger import logger
+from interests_fetcher.data import settings
 from bisect import bisect_left
 import datetime
 import functools
@@ -1334,7 +1334,6 @@ async def find_stops_near_sites_by_date(
     date: str,
     *,
     radius_m: float = 100.0,
-    jsession: str | None = None,
     min_stop_speed_kmh: float | None = None,
     min_stop_duration_sec: int | None = None,
 ) -> list[dict]:
@@ -1345,7 +1344,6 @@ async def find_stops_near_sites_by_date(
     :param sites: [{ "id": "...", "lat": <float>, "lon": <float> }, ...]
     :param date: строка YYYY-MM-DD
     :param radius_m: радиус, в пределах которого считаем, что стояли «на площадке»
-    :param jsession: опционально — использовать существующий jsession
     :param min_stop_speed_kmh: порог «стоп» (по умолчанию из конфигурации)
     :param min_stop_duration_sec: минимальная длительность остановки (по умолчанию из конфигурации)
     :return: [{ "site_id": str, "lat": float, "lon": float, "stops": [{"start": str, "end": str, "duration_sec": float}, ...]}, ...]
@@ -1380,7 +1378,7 @@ async def find_stops_near_sites_by_date(
     start_time = f"{date} 00:00:00"
     end_time = f"{date} 23:59:59"
 
-    from qt_pvp import cms_gate_client
+    from interests_fetcher import cms_gate_client
 
     tracks_raw, _alarms_unused = await cms_gate_client.get_tracks_and_alarms(
         reg_id=reg_id,

@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 import pytest
-from qt_pvp.qt_rm_client import QTRMClient
+from interests_fetcher.qt_rm_client import QTRMClient
 
 # ------------------ Fake HTTP layer ------------------
 

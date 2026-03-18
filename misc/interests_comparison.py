@@ -2,8 +2,8 @@ from webdav3.client import Client
 from webdav3.exceptions import RemoteResourceNotFound
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Set
-from qt_pvp import functions as main_funcs
-from qt_pvp.interest_merge_funcs import merge_overlapping_interests
+from interests_fetcher import functions as main_funcs
+from interests_fetcher.interest_merge_funcs import merge_overlapping_interests
 from main_operator import Main
 import asyncio
 import os

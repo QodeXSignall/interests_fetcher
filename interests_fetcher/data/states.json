@@ -1,0 +1,72 @@
+{
+    "regs": {
+        "018270348452": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2025-12-01 18:59:38",
+            "verified_until": "2025-12-01 15:07:26",
+            "verified_until_long": "2025-12-01 06:07:24",
+            "euro_container_alarm": 2,
+            "kgo_container_alarm": 1,
+            "plate": "K630AX702",
+            "reg_id": "018270348452",
+            "pending_interests": []
+        },
+        "108410": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2025-12-01 22:26:04",
+            "verified_until": "2025-12-01 20:30:26",
+            "verified_until_long": "2025-12-01 11:30:24",
+            "euro_container_alarm": 1,
+            "kgo_container_alarm": 3,
+            "plate": null
+        },
+        "108411": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 1,
+            "last_upload_time": "2025-12-01 18:36:25",
+            "verified_until": "2025-12-01 14:51:03",
+            "verified_until_long": "2025-12-30 05:51:01",
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null,
+            "pending_interests": []
+        },
+        "K630AX702": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2025-12-11 11:01:50",
+            "verified_until": "2025-12-11 11:01:50",
+            "verified_until_long": "2025-12-11 11:01:50",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null
+        },
+        "string": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2025-12-11 11:50:24",
+            "verified_until": "2025-12-11 11:50:24",
+            "verified_until_long": "2025-12-11 11:50:24",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null
+        }
+    }
+}
