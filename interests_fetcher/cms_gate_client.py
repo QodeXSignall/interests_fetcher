@@ -164,22 +164,48 @@ async def get_tracks_and_alarms(
     reg_id: str,
     start_time: str,
     end_time: str,
+    timeout_sec: float = 300.0,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
-    Обёртка над job_type=tracks_alarms.
-    Возвращает (tracks, alarms).
+    Получает треки и алармы напрямую через GET /tracks-alarms.
+    Если прямой вызов недоступен (старый cms_gate), делает fallback на job API.
     """
+    client = _get_client()
+    url = f"{_get_base_url()}/tracks-alarms"
+    try:
+        resp = await client.get(
+            url,
+            params={"reg_id": reg_id, "start_time": start_time, "end_time": end_time},
+            headers=_auth_headers(),
+            timeout=timeout_sec,
+        )
+        if resp.status_code < 400:
+            res = resp.json()
+            tracks = res.get("tracks") or []
+            alarms = res.get("alarms") or []
+            if not isinstance(tracks, list) or not isinstance(alarms, list):
+                raise RuntimeError(
+                    f"Unexpected tracks/alarms type from cms_gate direct API: "
+                    f"{type(tracks)} / {type(alarms)}"
+                )
+            return tracks, alarms  # type: ignore[return-value]
+        logger.warning(
+            f"[cms_gate_client] direct tracks-alarms failed status={resp.status_code}; "
+            f"fallback to job API"
+        )
+    except Exception as e:
+        logger.warning(f"[cms_gate_client] direct tracks-alarms request error: {e}; fallback to job API")
 
     job_id = await submit_job(
         "tracks_alarms",
         {"reg_id": reg_id, "start_time": start_time, "end_time": end_time},
     )
-    res = await wait_for_job(job_id)
+    res = await wait_for_job(job_id, timeout_sec=timeout_sec)
     tracks = res.get("tracks") or []
     alarms = res.get("alarms") or []
     if not isinstance(tracks, list) or not isinstance(alarms, list):
         raise RuntimeError(
-            f"Unexpected tracks/alarms type from cms_gate: "
+            f"Unexpected tracks/alarms type from cms_gate job API: "
             f"{type(tracks)} / {type(alarms)}"
         )
     return tracks, alarms  # type: ignore[return-value]
@@ -219,7 +245,7 @@ async def download_clips_for_interest(
     reg_id: str,
     interest: Dict[str, Any],
     channels: Optional[List[int]] = None,
-    timeout_sec: float = 600.0,
+    timeout_sec: float = 1800.0,
 ) -> Dict[int, Dict[str, Any]]:
     """
     Обёртка над job_type=download_clips_for_interest.
