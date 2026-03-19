@@ -692,7 +692,7 @@ class Main:
                 self._running.add(t)
                 t.add_done_callback(self._running.discard)
 
-            await asyncio.sleep(3)
+            await asyncio.sleep(10)
 
     async def _refill_pending_interests_if_due(self, reg_id: str) -> None:
         """
