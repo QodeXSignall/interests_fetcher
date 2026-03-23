@@ -234,7 +234,7 @@ class Main:
         while True:
             start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
 
-            # Берём треки и алармы через cms_gate (REST + Celery)
+            # Берём треки и алармы через cms_gate (прямые HTTP)
             tracks, all_alarms = await cms_gate_client.get_tracks_and_alarms(
                 reg_id=reg_id,
                 start_time=start_time,
