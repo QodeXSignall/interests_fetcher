@@ -500,7 +500,7 @@ def find_interests_by_lifting_switches(
         gap_sec = (t_next - t_curr).total_seconds()
         GAP_THRESHOLD = settings.config.getint("Interests", "GAP_THRESHOLD_SEC", fallback=10)
         if gap_sec > GAP_THRESHOLD:
-            logger.debug(f"Обнаружен разрыв в треках: {t_curr} → {t_next} = {gap_sec:.1f}s")
+            logger.debug(f"{reg_id}: Обнаружен разрыв в треках: {t_curr} → {t_next} = {gap_sec:.1f}s")
 
         # === Новая вставка: обработка "разрыва" через алармы (если они переданы и подготовлены) ===
         if alarms and isinstance(alarms, dict) and "alarms" in alarms and "starts" in alarms and gap_sec > GAP_THRESHOLD:

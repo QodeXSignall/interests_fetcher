@@ -60,6 +60,7 @@ async def list_devices(status: str = "all", timeout_sec: float = 180.0) -> List[
     client = _get_client()
     normalized_status = (status or "all").lower()
     url = f"{_get_base_url()}/devices"
+    logger.debug(f"[cms_gate_client] GET {url} status={normalized_status}")
     resp = await client.get(
         url,
         params={"status": normalized_status},
@@ -89,6 +90,9 @@ async def get_tracks_and_alarms(
     """
     client = _get_client()
     url = f"{_get_base_url()}/tracks-alarms"
+    logger.debug(
+        f"[cms_gate_client] GET {url} reg_id={reg_id} start_time={start_time} end_time={end_time}"
+    )
     resp = await client.get(
         url,
         params={"reg_id": reg_id, "start_time": start_time, "end_time": end_time},
@@ -116,6 +120,7 @@ async def get_device_status(reg_id: str) -> Dict[str, Any]:
     """
     client = _get_client()
     url = f"{_get_base_url()}/devices/{reg_id}/status"
+    logger.debug(f"[cms_gate_client] GET {url}")
     resp = await client.get(url, headers=_auth_headers())
     if resp.status_code >= 400:
         logger.error(
@@ -143,6 +148,9 @@ async def download_clips_for_interest(
     payload: Dict[str, Any] = {"reg_id": reg_id, "interest": interest}
     if channels is not None:
         payload["channels"] = channels
+    logger.debug(
+        f"[cms_gate_client] POST {url} reg_id={reg_id} channels={payload.get('channels')}"
+    )
 
     resp = await client.post(
         url,
