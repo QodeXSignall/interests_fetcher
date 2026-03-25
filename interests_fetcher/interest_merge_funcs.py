@@ -96,6 +96,16 @@ def _normalize_interest(interest: dict) -> dict:
     Копируем интерес и добавляем технические поля:
     _start_dt, _end_dt, _pb_dt, _pa_dt + гарантируем beg_sec/end_sec.
     """
+    if not isinstance(interest, dict):
+        logger.error(
+            "[MERGE_INPUT_INVALID] expected dict, got %s value=%r",
+            type(interest).__name__,
+            interest,
+        )
+        raise TypeError(
+            f"merge_overlapping_interests expects list[dict], got element {type(interest).__name__}"
+        )
+
     d = dict(interest)
     d["_start_dt"] = _get_start_dt(d)
     d["_end_dt"] = _get_end_dt(d)
@@ -286,6 +296,15 @@ def merge_overlapping_interests(interests: List[dict]) -> List[dict]:
     """
     if not interests:
         return []
+
+    sample = interests[0] if isinstance(interests, list) and interests else interests
+    logger.info(
+        "[MERGE_BEGIN] input_type=%s input_len=%s first_item_type=%s first_item=%r",
+        type(interests).__name__,
+        len(interests) if hasattr(interests, "__len__") else "n/a",
+        type(sample).__name__,
+        sample,
+    )
 
     # нормализуем и сортируем по времени начала
     norm = [_normalize_interest(i) for i in interests]

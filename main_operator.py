@@ -333,6 +333,25 @@ class Main:
         except Exception:
             return datetime.datetime.max  # если испорченный интерес — обрабатываем в самом конце
 
+    def _log_interests_shape(self, reg_id: str, stage: str, interests):
+        sample_type = "n/a"
+        sample_repr = "n/a"
+        if isinstance(interests, list):
+            if interests:
+                sample_type = type(interests[0]).__name__
+                sample_repr = repr(interests[0])[:600]
+        else:
+            sample_type = type(interests).__name__
+            sample_repr = repr(interests)[:600]
+        try:
+            size = len(interests)
+        except Exception:
+            size = "n/a"
+        logger.info(
+            f"{reg_id}: [{stage}] interests_shape type={type(interests).__name__} "
+            f"size={size} sample_type={sample_type} sample={sample_repr}"
+        )
+
     async def download_reg_videos(self, reg_id, plate):
         logger.debug(f"{reg_id}. Начинаем работу с устройством.")
 
@@ -361,6 +380,7 @@ class Main:
             return True
 
         logger.info(f"{reg_id}: Найдено {len(interests)} интересов")
+        self._log_interests_shape(reg_id, "DOWNLOAD_REG_BEFORE_MERGE", interests)
         interests = merge_overlapping_interests(interests)
         logger.info(f"{reg_id}: К запуску {len(interests)} интересов (после фильтра processed).")
 
@@ -816,6 +836,7 @@ class Main:
                     reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
                     interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                     if interests:
+                        self._log_interests_shape(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
                         interests = merge_overlapping_interests(interests)
                         collected.extend(interests)
                         en = max(interest["end_time"] for interest in interests)
@@ -830,6 +851,7 @@ class Main:
                     reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
                     interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                     if interests:
+                        self._log_interests_shape(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
                         interests = merge_overlapping_interests(interests)
                         collected.extend(interests)
                         en = max(interest["end_time"] for interest in interests)
@@ -848,6 +870,7 @@ class Main:
                 reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
                 recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                 if recheck_interests:
+                    self._log_interests_shape(reg_id, "RECHECK_BEFORE_MERGE", recheck_interests)
                     recheck_interests = merge_overlapping_interests(recheck_interests)
                     # ВАЖНО: не добавляем их в collected, а синхронизируем с облаком
                     await self._sync_recheck_with_cloud(
@@ -878,6 +901,7 @@ class Main:
                     reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
                     long_recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st_long, en_long)
                     if long_recheck_interests:
+                        self._log_interests_shape(reg_id, "LONG_RECHECK_BEFORE_MERGE", long_recheck_interests)
                         long_recheck_interests = merge_overlapping_interests(long_recheck_interests)
                         await self._sync_recheck_with_cloud(
                             reg_id=reg_id,

@@ -29,6 +29,7 @@ REPORT_CANDIDATES = [
 
 
 DAY_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
+MIN_INTEREST_DATE = datetime.date(2026, 3, 17)
 
 
 def _append_report_line(plate: str, interest_name: str) -> None:
@@ -53,6 +54,30 @@ IGNORE_PLATES = {
     # уже проверенный
     "K630AX702",
 }
+
+
+def _project_plates_from_states() -> set[str]:
+    """
+    Возвращает plate'ы, явно привязанные к текущему проекту в states.json.
+    """
+    try:
+        with open(settings.states, "r", encoding="utf-8") as f:
+            states_data = json.load(f) or {}
+    except Exception as e:
+        print(f"[WARN] Не удалось прочитать states.json для фильтрации plate: {e}")
+        return set()
+
+    regs = states_data.get("regs") or {}
+    project_plates: set[str] = set()
+    for reg_info in regs.values():
+        if not isinstance(reg_info, dict):
+            continue
+        plate = reg_info.get("plate")
+        if isinstance(plate, str):
+            plate_norm = plate.strip()
+            if plate_norm:
+                project_plates.add(plate_norm)
+    return project_plates
 
 
 def _list_plates_from_cloud() -> List[str]:
@@ -228,9 +253,24 @@ def collect_interests_without_loading() -> Dict[str, List[str]]:
     total_interests_checked = 0
 
     plates = _list_plates_from_cloud()
+    project_plates = _project_plates_from_states()
+
+    if project_plates:
+        # Ключевой фильтр: берём только plate'ы текущего проекта из states.json.
+        plates = [p for p in plates if p in project_plates]
+        print(
+            f"Фильтр проекта активен: {len(project_plates)} plate из states.json, "
+            f"к обходу в облаке: {len(plates)}"
+        )
+    else:
+        print(
+            "[WARN] В states.json не найдено валидных plate. "
+            "Фильтр проекта не применён, будет полный обход облака."
+        )
+
     # применяем ignore
     plates = [p for p in plates if p not in IGNORE_PLATES]
-    print(f"Всего plates в облаке для обхода (после ignore): {len(plates)}")
+    print(f"Всего plates в облаке для обхода (после фильтров и ignore): {len(plates)}")
 
     for plate_idx, plate in enumerate(plates, start=1):
         print(f"\n[{plate_idx}/{len(plates)}] Plate {plate}")
@@ -241,9 +281,24 @@ def collect_interests_without_loading() -> Dict[str, List[str]]:
             print("  Дней в облаке не найдено, пропускаем.")
             continue
 
-        print(f"  Найдено дней в облаке: {len(days)}")
-
+        filtered_days: List[str] = []
         for day_str in days:
+            try:
+                day_date = datetime.datetime.strptime(day_str, "%Y.%m.%d").date()
+            except ValueError:
+                continue
+            if day_date > MIN_INTEREST_DATE:
+                filtered_days.append(day_str)
+
+        if not filtered_days:
+            print(f"  Нет дней позже {MIN_INTEREST_DATE.strftime('%d.%m.%Y')}, пропускаем.")
+            continue
+
+        print(
+            f"  Найдено дней в облаке: {len(days)}, после фильтра по дате: {len(filtered_days)}"
+        )
+
+        for day_str in filtered_days:
             total_days += 1
             print(f"  День {day_str}...")
             # Используем уже готовую функцию из cloud_uploader
@@ -273,12 +328,13 @@ def collect_interests_without_loading() -> Dict[str, List[str]]:
                     print(f"        [ПРОПУСК] Не удалось получить путь папки: {e}")
                     continue
 
-                # Фильтр по дате интереса: берём только интересы ПОЗЖЕ 10.11.2025
+                # Страховочный фильтр по дате интереса: берём только интересы ПОЗЖЕ 17.03.2026.
+                # Основная фильтрация уже на уровне day_str выше.
                 try:
                     _, date_str, _, _ = main_funcs.parse_interest_name(name)
                     interest_date = datetime.datetime.strptime(date_str, "%Y.%m.%d").date()
-                    if interest_date <= datetime.date(2025, 11, 10):
-                        print(f"        [ПРОПУСК] Дата интереса {date_str} <= 10.11.2025")
+                    if interest_date <= MIN_INTEREST_DATE:
+                        print(f"        [ПРОПУСК] Дата интереса {date_str} <= 17.03.2026")
                         continue
                 except Exception as e:
                     print(f"        [ПРОПУСК] Не удалось распарсить дату в имени: {e}")

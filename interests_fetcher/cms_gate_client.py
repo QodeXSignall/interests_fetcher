@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -148,26 +150,47 @@ async def download_clips_for_interest(
     payload: Dict[str, Any] = {"reg_id": reg_id, "interest": interest}
     if channels is not None:
         payload["channels"] = channels
-    logger.debug(
-        f"[cms_gate_client] POST {url} reg_id={reg_id} channels={payload.get('channels')}"
+    req_id = uuid.uuid4().hex[:12]
+    interest_name = (interest or {}).get("name")
+    t0 = time.perf_counter()
+    logger.info(
+        f"[cms_gate_client] req_id={req_id} POST {url} reg_id={reg_id} "
+        f"interest={interest_name} channels={payload.get('channels')} timeout={timeout_sec}"
     )
 
-    resp = await client.post(
-        url,
-        json=payload,
-        headers=_auth_headers(),
-        timeout=timeout_sec,
-    )
-    if resp.status_code >= 400:
+    try:
+        resp = await client.post(
+            url,
+            json=payload,
+            headers={**_auth_headers(), "X-Request-ID": req_id},
+            timeout=timeout_sec,
+        )
+    except httpx.HTTPError as e:
+        elapsed = time.perf_counter() - t0
         logger.error(
-            f"[cms_gate_client] download_clips_for_interest failed "
-            f"status={resp.status_code} body={resp.text}"
+            f"[cms_gate_client] req_id={req_id} transport_error reg_id={reg_id} "
+            f"interest={interest_name} channels={payload.get('channels')} elapsed={elapsed:.3f}s "
+            f"error={e!r}"
+        )
+        raise
+
+    elapsed = time.perf_counter() - t0
+    if resp.status_code >= 400:
+        body_preview = (resp.text or "")[:2000]
+        logger.error(
+            f"[cms_gate_client] req_id={req_id} download_clips_for_interest failed "
+            f"status={resp.status_code} elapsed={elapsed:.3f}s reg_id={reg_id} "
+            f"interest={interest_name} channels={payload.get('channels')} body={body_preview}"
         )
         resp.raise_for_status()
     res = resp.json()
     channels_map = res.get("channels") or {}
     if not isinstance(channels_map, dict):
         raise RuntimeError(f"Unexpected channels type from cms_gate: {type(channels_map)}")
+    logger.info(
+        f"[cms_gate_client] req_id={req_id} success status={resp.status_code} elapsed={elapsed:.3f}s "
+        f"reg_id={reg_id} interest={interest_name} channels_out={list(channels_map.keys())}"
+    )
 
     normalized: Dict[int, Dict[str, Any]] = {}
     for k, v in channels_map.items():

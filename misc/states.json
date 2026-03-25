@@ -1,0 +1,2628 @@
+{
+    "regs": {
+        "018270348452": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2026-03-25 10:36:19",
+            "verified_until": "2026-03-25 06:25:50",
+            "verified_until_long": "2026-03-24 19:20:07",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 2,
+            "kgo_container_alarm": 1,
+            "plate": null,
+            "pending_interests": []
+        },
+        "108410": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 3,
+            "last_upload_time": "2026-03-25 10:47:11",
+            "verified_until": "2026-03-25 09:04:15",
+            "verified_until_long": "2026-03-24 20:44:19",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 1,
+            "kgo_container_alarm": 3,
+            "plate": null,
+            "pending_interests": []
+        },
+        "108411": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 1,
+            "last_upload_time": "2026-03-18 06:56:18",
+            "verified_until": "2026-03-18 06:56:18",
+            "verified_until_long": "2026-03-18 06:56:18",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null,
+            "pending_interests": [
+                {
+                    "name": "A939CA702_2026.03.17 08.28.03-08.40.59",
+                    "reg_id": "108411",
+                    "beg_sec": 30483,
+                    "end_sec": 31259,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:28:03",
+                    "end_time": "2026-03-17 08:40:59",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:28:03",
+                    "photo_after_timestamp": "2026-03-17 08:40:46",
+                    "photo_before_sec": 30483.0,
+                    "photo_after_sec": 31246.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.591722,55.960055",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 08:35:50",
+                                "switch": 2,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 08.44.03-08.45.26",
+                    "reg_id": "108411",
+                    "beg_sec": 31443,
+                    "end_sec": 31526,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:44:03",
+                    "end_time": "2026-03-17 08:45:26",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:44:03",
+                    "photo_after_timestamp": "2026-03-17 08:45:26",
+                    "photo_before_sec": 31443.0,
+                    "photo_after_sec": 31526.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.600711,55.967093",
+                        "switches_amount": 3,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 08:44:34",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:44:39",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:44:59",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 08.46.31-08.47.38",
+                    "reg_id": "108411",
+                    "beg_sec": 31591,
+                    "end_sec": 31658,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:46:31",
+                    "end_time": "2026-03-17 08:47:38",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:46:31",
+                    "photo_after_timestamp": "2026-03-17 08:47:38",
+                    "photo_before_sec": 31591.0,
+                    "photo_after_sec": 31658.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.599767,55.966353",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 08:47:11",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 08.52.01-08.53.59",
+                    "reg_id": "108411",
+                    "beg_sec": 31921,
+                    "end_sec": 32039,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:52:01",
+                    "end_time": "2026-03-17 08:53:59",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:52:01",
+                    "photo_after_timestamp": "2026-03-17 08:53:59",
+                    "photo_before_sec": 31921.0,
+                    "photo_after_sec": 32039.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603101,55.961533",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 08:52:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:52:57",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:53:02",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:53:32",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 08.55.29-08.56.31",
+                    "reg_id": "108411",
+                    "beg_sec": 32129,
+                    "end_sec": 32191,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:55:29",
+                    "end_time": "2026-03-17 08:56:31",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:55:29",
+                    "photo_after_timestamp": "2026-03-17 08:56:31",
+                    "photo_before_sec": 32129.0,
+                    "photo_after_sec": 32191.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.606230,55.961353",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 08:56:05",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 08:56:10",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 08.59.48-09.01.00",
+                    "reg_id": "108411",
+                    "beg_sec": 32388,
+                    "end_sec": 32460,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 08:59:48",
+                    "end_time": "2026-03-17 09:01:00",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 08:59:48",
+                    "photo_after_timestamp": "2026-03-17 09:01:00",
+                    "photo_before_sec": 32388.0,
+                    "photo_after_sec": 32460.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.607148,55.949955",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:00:34",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:00:39",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.02.00-09.05.09",
+                    "reg_id": "108411",
+                    "beg_sec": 32520,
+                    "end_sec": 32709,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:02:00",
+                    "end_time": "2026-03-17 09:05:09",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:02:00",
+                    "photo_after_timestamp": "2026-03-17 09:05:09",
+                    "photo_before_sec": 32520.0,
+                    "photo_after_sec": 32709.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.606952,55.951151",
+                        "switches_amount": 6,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:02:26",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:03:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:03:57",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:04:02",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:04:07",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:04:43",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.06.19-09.07.16",
+                    "reg_id": "108411",
+                    "beg_sec": 32779,
+                    "end_sec": 32836,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:06:19",
+                    "end_time": "2026-03-17 09:07:16",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:06:19",
+                    "photo_after_timestamp": "2026-03-17 09:07:16",
+                    "photo_before_sec": 32779.0,
+                    "photo_after_sec": 32836.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.604723,55.956477",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:06:55",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.07.56-09.08.43",
+                    "reg_id": "108411",
+                    "beg_sec": 32876,
+                    "end_sec": 32923,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:07:56",
+                    "end_time": "2026-03-17 09:08:43",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:07:56",
+                    "photo_after_timestamp": "2026-03-17 09:08:43",
+                    "photo_before_sec": 32876.0,
+                    "photo_after_sec": 32923.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.604032,55.958396",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:08:26",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.09.22-09.10.04",
+                    "reg_id": "108411",
+                    "beg_sec": 32962,
+                    "end_sec": 33004,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:09:22",
+                    "end_time": "2026-03-17 09:10:04",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:09:22",
+                    "photo_after_timestamp": "2026-03-17 09:10:04",
+                    "photo_before_sec": 32962.0,
+                    "photo_after_sec": 33004.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603402,55.960175",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:09:43",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.11.19-09.14.16",
+                    "reg_id": "108411",
+                    "beg_sec": 33079,
+                    "end_sec": 33256,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:11:19",
+                    "end_time": "2026-03-17 09:14:16",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:11:19",
+                    "photo_after_timestamp": "2026-03-17 09:14:03",
+                    "photo_before_sec": 33079.0,
+                    "photo_after_sec": 33243.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603149,55.952778",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:12:00",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:14:00",
+                                "switch": 1,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.17.10-09.17.51",
+                    "reg_id": "108411",
+                    "beg_sec": 33430,
+                    "end_sec": 33471,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:17:10",
+                    "end_time": "2026-03-17 09:17:51",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:17:10",
+                    "photo_after_timestamp": "2026-03-17 09:17:51",
+                    "photo_before_sec": 33430.0,
+                    "photo_after_sec": 33471.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603082,55.945353",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:17:35",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.20.17-09.22.00",
+                    "reg_id": "108411",
+                    "beg_sec": 33617,
+                    "end_sec": 33720,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:20:17",
+                    "end_time": "2026-03-17 09:22:00",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:20:17",
+                    "photo_after_timestamp": "2026-03-17 09:22:00",
+                    "photo_before_sec": 33617.0,
+                    "photo_after_sec": 33720.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.605951,55.945106",
+                        "switches_amount": 5,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:20:58",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:21:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:21:23",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:21:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:21:34",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.23.25-09.24.53",
+                    "reg_id": "108411",
+                    "beg_sec": 33805,
+                    "end_sec": 33893,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:23:25",
+                    "end_time": "2026-03-17 09:24:53",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:23:25",
+                    "photo_after_timestamp": "2026-03-17 09:24:53",
+                    "photo_before_sec": 33805.0,
+                    "photo_after_sec": 33893.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.607277,55.941423",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:23:41",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:23:46",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:24:11",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:24:16",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.28.30-09.29.27",
+                    "reg_id": "108411",
+                    "beg_sec": 34110,
+                    "end_sec": 34167,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:28:30",
+                    "end_time": "2026-03-17 09:29:27",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:28:30",
+                    "photo_after_timestamp": "2026-03-17 09:29:27",
+                    "photo_before_sec": 34110.0,
+                    "photo_after_sec": 34167.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.611162,55.946976",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:29:01",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:29:06",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.30.17-09.31.24",
+                    "reg_id": "108411",
+                    "beg_sec": 34217,
+                    "end_sec": 34284,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:30:17",
+                    "end_time": "2026-03-17 09:31:24",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:30:17",
+                    "photo_after_timestamp": "2026-03-17 09:31:24",
+                    "photo_before_sec": 34217.0,
+                    "photo_after_sec": 34284.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.611979,55.945731",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:30:58",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:31:03",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.33.25-09.34.12",
+                    "reg_id": "108411",
+                    "beg_sec": 34405,
+                    "end_sec": 34452,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:33:25",
+                    "end_time": "2026-03-17 09:34:12",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:33:25",
+                    "photo_after_timestamp": "2026-03-17 09:34:12",
+                    "photo_before_sec": 34405.0,
+                    "photo_after_sec": 34452.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.612270,55.944720",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:33:55",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.36.38-09.41.44",
+                    "reg_id": "108411",
+                    "beg_sec": 34598,
+                    "end_sec": 34904,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:36:38",
+                    "end_time": "2026-03-17 09:41:44",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:36:38",
+                    "photo_after_timestamp": "2026-03-17 09:41:44",
+                    "photo_before_sec": 34598.0,
+                    "photo_after_sec": 34904.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.614401,55.945121",
+                        "switches_amount": 10,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:39:10",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:39:16",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:40:01",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:40:32",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:40:37",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:40:42",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:40:47",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:41:07",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:41:12",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:41:17",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.42.49-09.45.31",
+                    "reg_id": "108411",
+                    "beg_sec": 34969,
+                    "end_sec": 35131,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:42:49",
+                    "end_time": "2026-03-17 09:45:31",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:42:49",
+                    "photo_after_timestamp": "2026-03-17 09:45:18",
+                    "photo_before_sec": 34969.0,
+                    "photo_after_sec": 35118.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.614901,55.947333",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:43:22",
+                                "switch": 2,
+                                "source": "alarm-gap"
+                            },
+                            {
+                                "datetime": "2026-03-17 09:44:05",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.46.48-09.48.10",
+                    "reg_id": "108411",
+                    "beg_sec": 35208,
+                    "end_sec": 35290,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:46:48",
+                    "end_time": "2026-03-17 09:48:10",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:46:48",
+                    "photo_after_timestamp": "2026-03-17 09:48:10",
+                    "photo_before_sec": 35208.0,
+                    "photo_after_sec": 35290.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.614767,55.949083",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:47:13",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:47:28",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:47:33",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:47:49",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.50.52-09.51.49",
+                    "reg_id": "108411",
+                    "beg_sec": 35452,
+                    "end_sec": 35509,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:50:52",
+                    "end_time": "2026-03-17 09:51:49",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:50:52",
+                    "photo_after_timestamp": "2026-03-17 09:51:49",
+                    "photo_before_sec": 35452.0,
+                    "photo_after_sec": 35509.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.618627,55.947504",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:51:27",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.53.55-09.54.52",
+                    "reg_id": "108411",
+                    "beg_sec": 35635,
+                    "end_sec": 35692,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:53:55",
+                    "end_time": "2026-03-17 09:54:52",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:53:55",
+                    "photo_after_timestamp": "2026-03-17 09:54:52",
+                    "photo_before_sec": 35635.0,
+                    "photo_after_sec": 35692.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.615539,55.946994",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:54:20",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 09.56.22-09.57.34",
+                    "reg_id": "108411",
+                    "beg_sec": 35782,
+                    "end_sec": 35854,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 09:56:22",
+                    "end_time": "2026-03-17 09:57:34",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 09:56:22",
+                    "photo_after_timestamp": "2026-03-17 09:57:34",
+                    "photo_before_sec": 35782.0,
+                    "photo_after_sec": 35854.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.616182,55.942817",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 09:56:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:57:08",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:57:13",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 09:57:18",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.02.23-10.02.55",
+                    "reg_id": "108411",
+                    "beg_sec": 36143,
+                    "end_sec": 36175,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:02:23",
+                    "end_time": "2026-03-17 10:02:55",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:02:23",
+                    "photo_after_timestamp": "2026-03-17 10:02:55",
+                    "photo_before_sec": 36143.0,
+                    "photo_after_sec": 36175.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.614881,55.944671",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:02:48",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:02:53",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.04.45-10.05.42",
+                    "reg_id": "108411",
+                    "beg_sec": 36285,
+                    "end_sec": 36342,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:04:45",
+                    "end_time": "2026-03-17 10:05:42",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:04:45",
+                    "photo_after_timestamp": "2026-03-17 10:05:42",
+                    "photo_before_sec": 36285.0,
+                    "photo_after_sec": 36342.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.613534,55.942648",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:05:15",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.07.28-10.08.35",
+                    "reg_id": "108411",
+                    "beg_sec": 36448,
+                    "end_sec": 36515,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:07:28",
+                    "end_time": "2026-03-17 10:08:35",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:07:28",
+                    "photo_after_timestamp": "2026-03-17 10:08:35",
+                    "photo_before_sec": 36448.0,
+                    "photo_after_sec": 36515.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.615312,55.938538",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:08:08",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:08:13",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.09.24-10.09.59",
+                    "reg_id": "108411",
+                    "beg_sec": 36564,
+                    "end_sec": 36599,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:09:24",
+                    "end_time": "2026-03-17 10:09:59",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:09:24",
+                    "photo_after_timestamp": "2026-03-17 10:09:46",
+                    "photo_before_sec": 36564.0,
+                    "photo_after_sec": 36586.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.614614,55.937771",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:09:35",
+                                "switch": 1,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.10.25-10.11.12",
+                    "reg_id": "108411",
+                    "beg_sec": 36625,
+                    "end_sec": 36672,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:10:25",
+                    "end_time": "2026-03-17 10:11:12",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:10:25",
+                    "photo_after_timestamp": "2026-03-17 10:11:12",
+                    "photo_before_sec": 36625.0,
+                    "photo_after_sec": 36672.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.613789,55.936890",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:10:51",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:10:56",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.12.53-10.14.10",
+                    "reg_id": "108411",
+                    "beg_sec": 36773,
+                    "end_sec": 36850,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:12:53",
+                    "end_time": "2026-03-17 10:14:10",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:12:53",
+                    "photo_after_timestamp": "2026-03-17 10:14:10",
+                    "photo_before_sec": 36773.0,
+                    "photo_after_sec": 36850.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.611437,55.938044",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:13:23",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:13:43",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.20.25-10.22.18",
+                    "reg_id": "108411",
+                    "beg_sec": 37225,
+                    "end_sec": 37338,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:20:25",
+                    "end_time": "2026-03-17 10:22:18",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:20:25",
+                    "photo_after_timestamp": "2026-03-17 10:22:18",
+                    "photo_before_sec": 37225.0,
+                    "photo_after_sec": 37338.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.608044,55.931046",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:21:05",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.33.37-10.35.35",
+                    "reg_id": "108411",
+                    "beg_sec": 38017,
+                    "end_sec": 38135,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:33:37",
+                    "end_time": "2026-03-17 10:35:35",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:33:37",
+                    "photo_after_timestamp": "2026-03-17 10:35:35",
+                    "photo_before_sec": 38017.0,
+                    "photo_after_sec": 38135.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603655,55.931894",
+                        "switches_amount": 3,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:34:08",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:34:28",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:34:59",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.40.39-10.41.41",
+                    "reg_id": "108411",
+                    "beg_sec": 38439,
+                    "end_sec": 38501,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:40:39",
+                    "end_time": "2026-03-17 10:41:41",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:40:39",
+                    "photo_after_timestamp": "2026-03-17 10:41:41",
+                    "photo_before_sec": 38439.0,
+                    "photo_after_sec": 38501.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.599610,55.905406",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:41:20",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.45.13-10.46.31",
+                    "reg_id": "108411",
+                    "beg_sec": 38713,
+                    "end_sec": 38791,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:45:13",
+                    "end_time": "2026-03-17 10:46:31",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:45:13",
+                    "photo_after_timestamp": "2026-03-17 10:46:31",
+                    "photo_before_sec": 38713.0,
+                    "photo_after_sec": 38791.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.594135,55.910569",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:45:49",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.48.06-10.50.30",
+                    "reg_id": "108411",
+                    "beg_sec": 38886,
+                    "end_sec": 39030,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:48:06",
+                    "end_time": "2026-03-17 10:50:30",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:48:06",
+                    "photo_after_timestamp": "2026-03-17 10:50:30",
+                    "photo_before_sec": 38886.0,
+                    "photo_after_sec": 39030.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.593437,55.909309",
+                        "switches_amount": 11,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:48:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:48:57",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:07",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:12",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:17",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:42",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:48",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:53",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:49:58",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:50:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:50:08",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 10.52.15-10.58.30",
+                    "reg_id": "108411",
+                    "beg_sec": 39135,
+                    "end_sec": 39510,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 10:52:15",
+                    "end_time": "2026-03-17 10:58:30",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 10:52:15",
+                    "photo_after_timestamp": "2026-03-17 10:58:17",
+                    "photo_before_sec": 39135.0,
+                    "photo_after_sec": 39497.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.593382,55.909131",
+                        "switches_amount": 9,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 10:52:55",
+                                "switch": 2,
+                                "source": "alarm-gap"
+                            },
+                            {
+                                "datetime": "2026-03-17 10:52:56",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:53:01",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:53:06",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:55:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:55:08",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:55:13",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:57:15",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 10:57:20",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.01.03-11.02.31",
+                    "reg_id": "108411",
+                    "beg_sec": 39663,
+                    "end_sec": 39751,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:01:03",
+                    "end_time": "2026-03-17 11:02:31",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:01:03",
+                    "photo_after_timestamp": "2026-03-17 11:02:31",
+                    "photo_before_sec": 39663.0,
+                    "photo_after_sec": 39751.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.593366,55.907791",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:01:49",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.05.27-11.05.54",
+                    "reg_id": "108411",
+                    "beg_sec": 39927,
+                    "end_sec": 39954,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:05:27",
+                    "end_time": "2026-03-17 11:05:54",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:05:27",
+                    "photo_after_timestamp": "2026-03-17 11:05:54",
+                    "photo_before_sec": 39927.0,
+                    "photo_after_sec": 39954.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.594270,55.905110",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:05:43",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:05:48",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.07.09-11.10.18",
+                    "reg_id": "108411",
+                    "beg_sec": 40029,
+                    "end_sec": 40218,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:07:09",
+                    "end_time": "2026-03-17 11:10:18",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:07:09",
+                    "photo_after_timestamp": "2026-03-17 11:10:18",
+                    "photo_before_sec": 40029.0,
+                    "photo_after_sec": 40218.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.596774,55.901397",
+                        "switches_amount": 11,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:07:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:07:34",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:07:39",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:07:45",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:07:50",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:16",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:21",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:26",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:31",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:36",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:09:52",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.11.28-11.12.56",
+                    "reg_id": "108411",
+                    "beg_sec": 40288,
+                    "end_sec": 40376,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:11:28",
+                    "end_time": "2026-03-17 11:12:56",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:11:28",
+                    "photo_after_timestamp": "2026-03-17 11:12:56",
+                    "photo_before_sec": 40288.0,
+                    "photo_after_sec": 40376.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.597929,55.898047",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:11:53",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:11:59",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:12:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:12:34",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.15.22-11.16.39",
+                    "reg_id": "108411",
+                    "beg_sec": 40522,
+                    "end_sec": 40599,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:15:22",
+                    "end_time": "2026-03-17 11:16:39",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:15:22",
+                    "photo_after_timestamp": "2026-03-17 11:16:39",
+                    "photo_before_sec": 40522.0,
+                    "photo_after_sec": 40599.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.593602,55.889832",
+                        "switches_amount": 3,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:15:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:16:18",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:16:23",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.17.59-11.19.02",
+                    "reg_id": "108411",
+                    "beg_sec": 40679,
+                    "end_sec": 40742,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:17:59",
+                    "end_time": "2026-03-17 11:19:02",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:17:59",
+                    "photo_after_timestamp": "2026-03-17 11:19:02",
+                    "photo_before_sec": 40679.0,
+                    "photo_after_sec": 40742.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.591151,55.884331",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:18:45",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.21.38-11.24.11",
+                    "reg_id": "108411",
+                    "beg_sec": 40898,
+                    "end_sec": 41051,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:21:38",
+                    "end_time": "2026-03-17 11:24:11",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:21:38",
+                    "photo_after_timestamp": "2026-03-17 11:24:11",
+                    "photo_before_sec": 40898.0,
+                    "photo_after_sec": 41051.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.592491,55.890732",
+                        "switches_amount": 9,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:22:13",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:22:39",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:22:44",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:22:49",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:23:14",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:23:19",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:23:40",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:23:45",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:23:50",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.25.06-11.25.53",
+                    "reg_id": "108411",
+                    "beg_sec": 41106,
+                    "end_sec": 41153,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:25:06",
+                    "end_time": "2026-03-17 11:25:53",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:25:06",
+                    "photo_after_timestamp": "2026-03-17 11:25:53",
+                    "photo_before_sec": 41106.0,
+                    "photo_after_sec": 41153.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.591812,55.891523",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:25:36",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.26.58-11.27.45",
+                    "reg_id": "108411",
+                    "beg_sec": 41218,
+                    "end_sec": 41265,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:26:58",
+                    "end_time": "2026-03-17 11:27:45",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:26:58",
+                    "photo_after_timestamp": "2026-03-17 11:27:45",
+                    "photo_before_sec": 41218.0,
+                    "photo_after_sec": 41265.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.590817,55.892484",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:27:28",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.29.35-11.30.32",
+                    "reg_id": "108411",
+                    "beg_sec": 41375,
+                    "end_sec": 41432,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:29:35",
+                    "end_time": "2026-03-17 11:30:32",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:29:35",
+                    "photo_after_timestamp": "2026-03-17 11:30:32",
+                    "photo_before_sec": 41375.0,
+                    "photo_after_sec": 41432.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.592853,55.896965",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:30:16",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.32.23-11.33.05",
+                    "reg_id": "108411",
+                    "beg_sec": 41543,
+                    "end_sec": 41585,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:32:23",
+                    "end_time": "2026-03-17 11:33:05",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:32:23",
+                    "photo_after_timestamp": "2026-03-17 11:33:05",
+                    "photo_before_sec": 41543.0,
+                    "photo_after_sec": 41585.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.590115,55.893247",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:32:48",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:32:53",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.35.21-11.37.29",
+                    "reg_id": "108411",
+                    "beg_sec": 41721,
+                    "end_sec": 41849,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:35:21",
+                    "end_time": "2026-03-17 11:37:29",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:35:21",
+                    "photo_after_timestamp": "2026-03-17 11:37:29",
+                    "photo_before_sec": 41721.0,
+                    "photo_after_sec": 41849.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.588511,55.896404",
+                        "switches_amount": 9,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:35:41",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:35:46",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:06",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:11",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:17",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:32",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:37",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:36:57",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.38.13-11.39.21",
+                    "reg_id": "108411",
+                    "beg_sec": 41893,
+                    "end_sec": 41961,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:38:13",
+                    "end_time": "2026-03-17 11:39:21",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:38:13",
+                    "photo_after_timestamp": "2026-03-17 11:39:21",
+                    "photo_before_sec": 41893.0,
+                    "photo_after_sec": 41961.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.588259,55.895536",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:38:44",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.40.36-11.41.23",
+                    "reg_id": "108411",
+                    "beg_sec": 42036,
+                    "end_sec": 42083,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:40:36",
+                    "end_time": "2026-03-17 11:41:23",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:40:36",
+                    "photo_after_timestamp": "2026-03-17 11:41:23",
+                    "photo_before_sec": 42036.0,
+                    "photo_after_sec": 42083.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.586751,55.891992",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:41:06",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:41:11",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.43.28-11.44.51",
+                    "reg_id": "108411",
+                    "beg_sec": 42208,
+                    "end_sec": 42291,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:43:28",
+                    "end_time": "2026-03-17 11:44:51",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:43:28",
+                    "photo_after_timestamp": "2026-03-17 11:44:51",
+                    "photo_before_sec": 42208.0,
+                    "photo_after_sec": 42291.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.583148,55.883562",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:43:54",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:44:14",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:44:19",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:44:34",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.45.51-11.46.43",
+                    "reg_id": "108411",
+                    "beg_sec": 42351,
+                    "end_sec": 42403,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:45:51",
+                    "end_time": "2026-03-17 11:46:43",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:45:51",
+                    "photo_after_timestamp": "2026-03-17 11:46:43",
+                    "photo_before_sec": 42351.0,
+                    "photo_after_sec": 42403.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.582287,55.880378",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:46:26",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:46:31",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.48.03-11.50.16",
+                    "reg_id": "108411",
+                    "beg_sec": 42483,
+                    "end_sec": 42616,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:48:03",
+                    "end_time": "2026-03-17 11:50:16",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:48:03",
+                    "photo_after_timestamp": "2026-03-17 11:50:16",
+                    "photo_before_sec": 42483.0,
+                    "photo_after_sec": 42616.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.581792,55.878904",
+                        "switches_amount": 7,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:48:38",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:48:59",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:49:04",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:49:09",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:49:24",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:49:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:49:54",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.51.36-11.53.09",
+                    "reg_id": "108411",
+                    "beg_sec": 42696,
+                    "end_sec": 42789,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:51:36",
+                    "end_time": "2026-03-17 11:53:09",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:51:36",
+                    "photo_after_timestamp": "2026-03-17 11:53:09",
+                    "photo_before_sec": 42696.0,
+                    "photo_after_sec": 42789.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.580589,55.876276",
+                        "switches_amount": 5,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:51:56",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:52:12",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:52:32",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:52:47",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 11:52:52",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 11.57.42-11.58.32",
+                    "reg_id": "108411",
+                    "beg_sec": 43062,
+                    "end_sec": 43112,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 11:57:42",
+                    "end_time": "2026-03-17 11:58:32",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 11:57:42",
+                    "photo_after_timestamp": "2026-03-17 11:58:19",
+                    "photo_before_sec": 43062.0,
+                    "photo_after_sec": 43099.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.586852,55.875129",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 11:58:28",
+                                "switch": 2,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.02.11-12.04.24",
+                    "reg_id": "108411",
+                    "beg_sec": 43331,
+                    "end_sec": 43464,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:02:11",
+                    "end_time": "2026-03-17 12:04:24",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:02:11",
+                    "photo_after_timestamp": "2026-03-17 12:04:24",
+                    "photo_before_sec": 43331.0,
+                    "photo_after_sec": 43464.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.578097,55.872591",
+                        "switches_amount": 8,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:02:42",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:02",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:07",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:12",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:17",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:22",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:37",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:03:43",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.07.21-12.09.44",
+                    "reg_id": "108411",
+                    "beg_sec": 43641,
+                    "end_sec": 43784,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:07:21",
+                    "end_time": "2026-03-17 12:09:44",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:07:21",
+                    "photo_after_timestamp": "2026-03-17 12:09:44",
+                    "photo_before_sec": 43641.0,
+                    "photo_after_sec": 43784.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.585623,55.891250",
+                        "switches_amount": 9,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:07:57",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:08:17",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:08:22",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:08:47",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:08:52",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:08:57",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:09:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:09:18",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:09:23",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.10.54-12.12.07",
+                    "reg_id": "108411",
+                    "beg_sec": 43854,
+                    "end_sec": 43927,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:10:54",
+                    "end_time": "2026-03-17 12:12:07",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:10:54",
+                    "photo_after_timestamp": "2026-03-17 12:12:07",
+                    "photo_before_sec": 43854.0,
+                    "photo_after_sec": 43927.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.586096,55.892626",
+                        "switches_amount": 3,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:11:20",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:11:25",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:11:45",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.13.17-12.13.58",
+                    "reg_id": "108411",
+                    "beg_sec": 43997,
+                    "end_sec": 44038,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:13:17",
+                    "end_time": "2026-03-17 12:13:58",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:13:17",
+                    "photo_after_timestamp": "2026-03-17 12:13:58",
+                    "photo_before_sec": 43997.0,
+                    "photo_after_sec": 44038.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.586877,55.893590",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:13:42",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.14.53-12.15.45",
+                    "reg_id": "108411",
+                    "beg_sec": 44093,
+                    "end_sec": 44145,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:14:53",
+                    "end_time": "2026-03-17 12:15:45",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:14:53",
+                    "photo_after_timestamp": "2026-03-17 12:15:45",
+                    "photo_before_sec": 44093.0,
+                    "photo_after_sec": 44145.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.587258,55.893920",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:15:34",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.16.35-12.17.37",
+                    "reg_id": "108411",
+                    "beg_sec": 44195,
+                    "end_sec": 44257,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:16:35",
+                    "end_time": "2026-03-17 12:17:37",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:16:35",
+                    "photo_after_timestamp": "2026-03-17 12:17:37",
+                    "photo_before_sec": 44195.0,
+                    "photo_after_sec": 44257.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.587214,55.894911",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:17:10",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.19.12-12.20.55",
+                    "reg_id": "108411",
+                    "beg_sec": 44352,
+                    "end_sec": 44455,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:19:12",
+                    "end_time": "2026-03-17 12:20:55",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:19:12",
+                    "photo_after_timestamp": "2026-03-17 12:20:55",
+                    "photo_before_sec": 44352.0,
+                    "photo_after_sec": 44455.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.589786,55.901272",
+                        "switches_amount": 4,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:19:38",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:19:43",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:20:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:20:33",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.22.25-12.24.08",
+                    "reg_id": "108411",
+                    "beg_sec": 44545,
+                    "end_sec": 44648,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:22:25",
+                    "end_time": "2026-03-17 12:24:08",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:22:25",
+                    "photo_after_timestamp": "2026-03-17 12:24:08",
+                    "photo_before_sec": 44545.0,
+                    "photo_after_sec": 44648.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.590850,55.905240",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:22:56",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:23:01",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.25.48-12.28.07",
+                    "reg_id": "108411",
+                    "beg_sec": 44748,
+                    "end_sec": 44887,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:25:48",
+                    "end_time": "2026-03-17 12:28:07",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:25:48",
+                    "photo_after_timestamp": "2026-03-17 12:28:07",
+                    "photo_before_sec": 44748.0,
+                    "photo_after_sec": 44887.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.592276,55.907485",
+                        "switches_amount": 3,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:26:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:26:34",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 12:27:00",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 12.58.14-12.59.04",
+                    "reg_id": "108411",
+                    "beg_sec": 46694,
+                    "end_sec": 46744,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 12:58:14",
+                    "end_time": "2026-03-17 12:59:04",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 12:58:14",
+                    "photo_after_timestamp": "2026-03-17 12:58:51",
+                    "photo_before_sec": 46694.0,
+                    "photo_after_sec": 46731.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.603012,55.933905",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 12:58:34",
+                                "switch": 1,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.03.44-13.04.44",
+                    "reg_id": "108411",
+                    "beg_sec": 47024,
+                    "end_sec": 47084,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:03:44",
+                    "end_time": "2026-03-17 13:04:44",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:03:44",
+                    "photo_after_timestamp": "2026-03-17 13:04:31",
+                    "photo_before_sec": 47024.0,
+                    "photo_after_sec": 47071.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.605650,55.936598",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:04:00",
+                                "switch": 2,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.10.36-13.12.52",
+                    "reg_id": "108411",
+                    "beg_sec": 47436,
+                    "end_sec": 47572,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:10:36",
+                    "end_time": "2026-03-17 13:12:52",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:10:36",
+                    "photo_after_timestamp": "2026-03-17 13:12:39",
+                    "photo_before_sec": 47436.0,
+                    "photo_after_sec": 47559.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.613427,55.940610",
+                        "switches_amount": 1,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:12:28",
+                                "switch": 1,
+                                "source": "alarm-gap"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.34.08-13.37.33",
+                    "reg_id": "108411",
+                    "beg_sec": 48848,
+                    "end_sec": 49053,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:34:08",
+                    "end_time": "2026-03-17 13:37:33",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:34:08",
+                    "photo_after_timestamp": "2026-03-17 13:37:33",
+                    "photo_before_sec": 48848.0,
+                    "photo_after_sec": 49053.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.628918,55.881393",
+                        "switches_amount": 13,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:34:49",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:35:19",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:35:24",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:35:29",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:35:34",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:05",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:25",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:30",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:35",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:40",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:36:46",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:37:01",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:37:06",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.39.33-13.41.16",
+                    "reg_id": "108411",
+                    "beg_sec": 49173,
+                    "end_sec": 49276,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:39:33",
+                    "end_time": "2026-03-17 13:41:16",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:39:33",
+                    "photo_after_timestamp": "2026-03-17 13:41:16",
+                    "photo_before_sec": 49173.0,
+                    "photo_after_sec": 49276.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.628294,55.882454",
+                        "switches_amount": 7,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:40:19",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:40:39",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:40:44",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:40:49",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:40:54",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:41:00",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:41:05",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.44.28-13.45.10",
+                    "reg_id": "108411",
+                    "beg_sec": 49468,
+                    "end_sec": 49510,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:44:28",
+                    "end_time": "2026-03-17 13:45:10",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:44:28",
+                    "photo_after_timestamp": "2026-03-17 13:45:10",
+                    "photo_before_sec": 49468.0,
+                    "photo_after_sec": 49510.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.626902,55.881805",
+                        "switches_amount": 2,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:44:43",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:44:48",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "A939CA702_2026.03.17 13.49.07-13.51.05",
+                    "reg_id": "108411",
+                    "beg_sec": 49747,
+                    "end_sec": 49865,
+                    "year": 2026,
+                    "month": 3,
+                    "day": 17,
+                    "start_time": "2026-03-17 13:49:07",
+                    "end_time": "2026-03-17 13:51:05",
+                    "car_number": "A939CA702",
+                    "photo_before_timestamp": "2026-03-17 13:49:07",
+                    "photo_after_timestamp": "2026-03-17 13:51:05",
+                    "photo_before_sec": 49747.0,
+                    "photo_after_sec": 49865.0,
+                    "report": {
+                        "cargo_type": "Контейнер",
+                        "geo": "53.631857,55.880280",
+                        "switches_amount": 5,
+                        "switch_events": [
+                            {
+                                "datetime": "2026-03-17 13:49:43",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:49:58",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:50:03",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:50:28",
+                                "switch": 23
+                            },
+                            {
+                                "datetime": "2026-03-17 13:50:34",
+                                "switch": 23
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        "018270283642": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 1,
+            "last_upload_time": "2026-03-20 00:23:14",
+            "verified_until": "2026-03-20 00:03:12",
+            "verified_until_long": "2026-03-20 00:03:12",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 1,
+            "kgo_container_alarm": 2,
+            "plate": "К745ОН702"
+        },
+        "018270283681": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 1,
+            "last_upload_time": "2026-03-25 07:48:03",
+            "verified_until": "2026-03-25 01:21:02",
+            "verified_until_long": "2026-03-24 11:27:40",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 2,
+            "kgo_container_alarm": 1,
+            "plate": "K483PX702",
+            "pending_interests": []
+        },
+        "118270283681": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2026-03-06 00:23:14",
+            "verified_until": "2026-03-06 00:03:12",
+            "verified_until_long": "2026-03-06 00:03:12",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null
+        }
+    }
+}
