@@ -595,6 +595,21 @@ def find_interests_by_lifting_switches(
                 else:
                     time_before = find_first_stable_stop(tracks, i, alarm_dt, settings, first_interest,
                                                          start_tracks_search_time, reg_id)
+                if not time_before:
+                    # Для короткого окна (например, i=0) подтвержденная остановка может не собраться.
+                    # В этом случае используем безопасный fallback рядом с alarm_dt вместо падения.
+                    short_window_fallback_sec = settings.config.getint(
+                        "Interests", "SHORT_WINDOW_FALLBACK_SEC", fallback=30
+                    )
+                    if delta_last_track_to_alarm_seconds > 0:
+                        fallback_anchor = max(t_curr, alarm_dt - datetime.timedelta(seconds=short_window_fallback_sec))
+                    else:
+                        fallback_anchor = alarm_dt - datetime.timedelta(seconds=short_window_fallback_sec)
+                    time_before = fallback_anchor.strftime(settings.TIME_FMT)
+                    logger.warning(
+                        f"{reg_id}: [TIME_BEFORE-FALLBACK] Короткое/шумное окно перед alarm, "
+                        f"используем оценку {time_before} (i={i}, delta={delta_last_track_to_alarm_seconds:.1f}s)"
+                    )
 
                 if delta_alarm_to_first_track_seconds > 30:
                     logger.warning(

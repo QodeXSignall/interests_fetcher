@@ -11,7 +11,9 @@
             "envFile": "${workspaceFolder}/.env",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
-                "CMS_GATE_API_TOKEN": "dev-token"
+                "CMS_GATE_API_TOKEN": "q0dex$$$TRACKER.CMS_GATE.t0ken",
+                "CMS_GATE_BASE_URL": "http://82.146.45.88:8081/api/v1"
+
             }
         },
         {

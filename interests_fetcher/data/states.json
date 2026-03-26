@@ -67,6 +67,22 @@
             "euro_container_alarm": 4,
             "kgo_container_alarm": 3,
             "plate": null
+        },
+        "К745ОН702": {
+            "ignore": false,
+            "interests": [],
+            "chanel_id": 0,
+            "last_upload_time": "2026-03-19 12:22:34",
+            "verified_until": "2026-03-19 12:22:34",
+            "verified_until_long": "2026-03-19 12:22:34",
+            "by_trigger": 1,
+            "by_stops": 0,
+            "by_door_limit_switch": 0,
+            "by_lifting_limit_switch": 1,
+            "continuous": 0,
+            "euro_container_alarm": 4,
+            "kgo_container_alarm": 3,
+            "plate": null
         }
     }
 }

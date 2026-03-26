@@ -233,11 +233,17 @@ class Main:
 
         while True:
             start_time_dt = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+            tracks_prealarm_lookback_sec = settings.config.getint(
+                "Interests", "TRACKS_PREALARM_LOOKBACK_SEC", fallback=120
+            )
+            query_start_time = (start_time_dt - datetime.timedelta(seconds=tracks_prealarm_lookback_sec)).strftime(
+                self.TIME_FMT
+            )
 
             # Берём треки и алармы через cms_gate (прямые HTTP)
             tracks, all_alarms = await cms_gate_client.get_tracks_and_alarms(
                 reg_id=reg_id,
-                start_time=start_time,
+                start_time=query_start_time,
                 end_time=stop_time,
             )
             #for alarm in all_alarms:

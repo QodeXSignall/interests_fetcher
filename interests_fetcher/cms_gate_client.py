@@ -21,7 +21,7 @@ def _get_base_url() -> str:
     считается, что сервис доступен на localhost:9000.
     """
 
-    return os.environ.get("CMS_GATE_BASE_URL", "http://localhost:9000/api/v1")
+    return os.environ.get("CMS_GATE_BASE_URL", "http://localhost:8081/api/v1")
 
 
 def _get_api_token() -> str:
