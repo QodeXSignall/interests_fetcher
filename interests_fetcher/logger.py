@@ -59,3 +59,28 @@ if not logger.handlers:
 
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
+
+
+def pipeline_event(event: str, **fields) -> str:
+    """
+    Одна строка с префиксом [PIPELINE] для grep по journal (анализ надёжности, корреляция с cms_gate).
+
+    Пример: grep '[PIPELINE]' journal_2026-04-03.log
+    """
+    parts: list[str] = [f"[PIPELINE] {event}"]
+    for key in sorted(fields.keys()):
+        val = fields[key]
+        if val is None:
+            continue
+        if isinstance(val, float):
+            parts.append(f"{key}={val:.3f}")
+        elif isinstance(val, bool):
+            parts.append(f"{key}={val}")
+        elif isinstance(val, int):
+            parts.append(f"{key}={val}")
+        elif isinstance(val, str):
+            s = val.replace("\n", " ").replace("\r", "")[:400]
+            parts.append(f'{key}="{s}"')
+        else:
+            parts.append(f"{key}={val!r}")
+    return " ".join(parts)

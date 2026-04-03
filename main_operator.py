@@ -4,7 +4,9 @@ from interests_fetcher.functions import parse_interest_name
 from interests_fetcher.qt_rm_client import QTRMAsyncClient
 from interests_fetcher import functions as main_funcs
 from interests_fetcher import cloud_uploader
-from interests_fetcher.logger import logger
+import time
+
+from interests_fetcher.logger import logger, pipeline_event
 from interests_fetcher.data import settings
 from interests_fetcher import cms_gate_client
 from interests_fetcher import video_utils
@@ -198,12 +200,26 @@ class Main:
             else:
                 logger.debug("No devices online from cms_gate.")
             self._last_devices_online = devices
+            logger.info(
+                pipeline_event(
+                    "devices_online_poll",
+                    count=len(devices or []),
+                    fallback=False,
+                )
+            )
             return devices
         except TimeoutError as e:
             fallback_count = len(self._last_devices_online or [])
             logger.warning(
                 f"list_devices timeout in cms_gate: {e}. "
                 f"Using last known online devices ({fallback_count})."
+            )
+            logger.warning(
+                pipeline_event(
+                    "devices_online_poll",
+                    count=len(self._last_devices_online or []),
+                    fallback=True,
+                )
             )
             return self._last_devices_online or []
 
@@ -358,6 +374,34 @@ class Main:
             f"size={size} sample_type={sample_type} sample={sample_repr}"
         )
 
+    def _merge_interests_safe(self, reg_id: str, stage: str, raw) -> list[dict] | None:
+        """
+        Приводит ответ get_interests_async к списку и вызывает merge_overlapping_interests.
+
+        None — прервать только refill: CMS вернул «Loading in progress» (нельзя вызывать merge по dict).
+        Пустой список — интересов нет.
+        """
+        if isinstance(raw, dict) and raw.get("error") == "Loading in progress":
+            logger.info(f"{reg_id}: [{stage}] пропуск merge: машина грузится (Loading in progress)")
+            return None
+        if raw is None or raw == []:
+            return []
+        if isinstance(raw, dict):
+            if "error" in raw:
+                logger.warning(f"{reg_id}: [{stage}] ответ с полем error: {raw!r}")
+                return []
+            logger.warning(f"{reg_id}: [{stage}] неожиданный dict вместо списка интересов: {raw!r}")
+            return []
+        if not isinstance(raw, list):
+            logger.warning(f"{reg_id}: [{stage}] неожиданный тип {type(raw).__name__}")
+            return []
+        cleaned = [x for x in raw if isinstance(x, dict)]
+        if len(cleaned) != len(raw):
+            logger.warning(f"{reg_id}: [{stage}] отфильтрованы не-dict элементы в списке интересов")
+        if not cleaned:
+            return []
+        return merge_overlapping_interests(cleaned)
+
     async def download_reg_videos(self, reg_id, plate):
         logger.debug(f"{reg_id}. Начинаем работу с устройством.")
 
@@ -369,6 +413,14 @@ class Main:
         if ignore:
             logger.debug(f"{reg_id}. Игнорируем регистратор, поскольку в states.json параметр ignore=true.")
             return
+
+        logger.info(
+            pipeline_event(
+                "device_run_start",
+                reg_id=str(reg_id),
+                plate=str(plate or ""),
+            )
+        )
 
         # Pending - уже извлеченные из CMS и сохраненные в states.json интересы
         pending = main_funcs.get_pending_interests(reg_id)
@@ -387,7 +439,16 @@ class Main:
 
         logger.info(f"{reg_id}: Найдено {len(interests)} интересов")
         self._log_interests_shape(reg_id, "DOWNLOAD_REG_BEFORE_MERGE", interests)
-        interests = merge_overlapping_interests(interests)
+        merged = self._merge_interests_safe(reg_id, "DOWNLOAD_REG_BEFORE_MERGE", interests)
+        if merged is None:
+            logger.warning(
+                f"{reg_id}: pending дал Loading in progress — пропускаем обход (повторим позже)."
+            )
+            return True
+        if not merged:
+            logger.warning(f"{reg_id}: после merge список интересов пуст — завершаем обход.")
+            return True
+        interests = merged
         logger.info(f"{reg_id}: К запуску {len(interests)} интересов (после фильтра processed).")
 
         # сортируем интересы по времени начала, старые сначала
@@ -403,6 +464,15 @@ class Main:
             interests = interests[:max_per_batch]
         else:
             logger.info(f"{reg_id}: Влезают все интересы ({total_found}) в одну пачку.")
+
+        logger.info(
+            pipeline_event(
+                "batch_scheduled",
+                reg_id=str(reg_id),
+                interests=len(interests),
+                batch_max=max_per_batch,
+            )
+        )
 
         # Стартуем задачи (сами ограничители внутри)
         channel_id = reg_info.get("chanel_id")
@@ -424,6 +494,14 @@ class Main:
                 if not t.done():
                     t.cancel()
         logger.info(f"{reg_id}: Пакет интересов завершён: {len(end_times)}/{len(interests)}")
+        logger.info(
+            pipeline_event(
+                "batch_complete",
+                reg_id=str(reg_id),
+                tasks=len(interests),
+                completed_with_end_time=len(end_times),
+            )
+        )
 
 
     async def _process_one_interest(self, interest: dict, channel_id) -> str | None:
@@ -444,6 +522,14 @@ class Main:
 
             if not cloud_paths:
                 logger.error(f"{reg_id}: Не удалось создать папки для {interest_name}. Пропускаем интерес.")
+                logger.info(
+                    pipeline_event(
+                        "interest_outcome",
+                        reg_id=str(reg_id),
+                        interest=str(interest_name),
+                        outcome="fail_no_cloud",
+                    )
+                )
                 self.del_pending_interest(reg_id, interest)
                 return interest["end_time"]
 
@@ -483,14 +569,68 @@ class Main:
 
             if not final_channels_to_download:
                 logger.info("Нечего скачивать, все материалы уже есть в облаке.")
+                logger.info(
+                    pipeline_event(
+                        "interest_outcome",
+                        reg_id=str(reg_id),
+                        interest=str(interest_name),
+                        outcome="skipped_already_in_cloud",
+                    )
+                )
                 self.del_pending_interest(reg_id, interest)
                 return None
 
-            # 4) скачиваем по одному клипу на канал через cms_gate
-            channels_files_dict = await cms_gate_client.download_clips_for_interest(
-                reg_id=reg_id,
-                interest=interest,
-                channels=final_channels_to_download,
+            # 4) скачиваем по одному клипу на канал через cms_gate (ретраи HTTP в клиенте + раунды при дырках)
+            def _all_requested_paths_present(m: dict) -> bool:
+                for ch in final_channels_to_download:
+                    info = m.get(ch) or m.get(str(ch))
+                    if not (info or {}).get("path"):
+                        return False
+                return True
+
+            download_rounds = max(1, settings.config.getint("Interests", "DOWNLOAD_INTEREST_ROUNDS", fallback=3))
+            round_delay = float(
+                settings.config.get("Interests", "DOWNLOAD_INTEREST_ROUND_DELAY_SEC", fallback="20")
+            )
+            channels_files_dict: dict = {}
+            t_dl = time.perf_counter()
+            for round_i in range(1, download_rounds + 1):
+                channels_files_dict = await cms_gate_client.download_clips_for_interest(
+                    reg_id=reg_id,
+                    interest=interest,
+                    channels=final_channels_to_download,
+                )
+                if _all_requested_paths_present(channels_files_dict):
+                    break
+                if round_i < download_rounds:
+                    missing = [
+                        ch
+                        for ch in final_channels_to_download
+                        if not (channels_files_dict.get(ch) or channels_files_dict.get(str(ch)) or {}).get(
+                            "path"
+                        )
+                    ]
+                    logger.warning(
+                        f"{reg_id}: {interest_name} раунд {round_i}/{download_rounds}: нет path по каналам "
+                        f"{missing} — повтор через {round_delay * round_i:.0f}s"
+                    )
+                    await asyncio.sleep(min(120.0, round_delay * round_i))
+            elapsed_dl = time.perf_counter() - t_dl
+            missing_after = [
+                ch
+                for ch in final_channels_to_download
+                if not (channels_files_dict.get(ch) or channels_files_dict.get(str(ch)) or {}).get("path")
+            ]
+            logger.info(
+                pipeline_event(
+                    "interest_download",
+                    reg_id=str(reg_id),
+                    interest=str(interest_name),
+                    elapsed_sec=elapsed_dl,
+                    rounds_max=download_rounds,
+                    paths_complete=len(missing_after) == 0,
+                    missing_count=len(missing_after),
+                )
             )
             # оставляем полную структуру для доступа к concat_sources при отладке
             channels_info = channels_files_dict
@@ -501,7 +641,10 @@ class Main:
             full_clip_path = None
 
             if not interest_video_exists:
-                file_dict = channels_files_dict.get(channel_id)
+                _ch_full = int(channel_id) if channel_id is not None else None
+                file_dict = None
+                if _ch_full is not None:
+                    file_dict = channels_files_dict.get(_ch_full) or channels_files_dict.get(str(_ch_full))
                 if file_dict:
                     full_clip_path = file_dict.get("path")
                 else:
@@ -534,7 +677,9 @@ class Main:
                 videos_by_channel=channels_paths,
                 keep_channel_id=channel_id if not interest_video_exists else None,
             )
-            all_done_ok = bool(ok_frames) #and (interest_video_exists or full_clip_upload_status))
+            need_full_video = not interest_video_exists
+            video_ok = interest_video_exists or bool(full_clip_upload_status)
+            all_done_ok = bool(ok_frames) and (not need_full_video or video_ok)
 
             if full_clip_path:
                 if full_clip_upload_status:
@@ -569,6 +714,23 @@ class Main:
                     shutil.rmtree(interest_temp_folder)
 
             logger.info(f"{reg_id}: V2 завершено. Upload={upload_status}. Удалено видеофайлов: {removed}.")
+            qt_sent = bool(
+                all_done_ok
+                and settings.config.getboolean("QT_RM", "enable_recognition")
+            )
+            logger.info(
+                pipeline_event(
+                    "interest_outcome",
+                    reg_id=str(reg_id),
+                    interest=str(interest_name),
+                    outcome="success" if all_done_ok else "partial",
+                    all_done_ok=all_done_ok,
+                    video_ok=video_ok,
+                    frames_ok=ok_frames,
+                    pending_cleared=all_done_ok,
+                    qt_recognition_scheduled=qt_sent,
+                )
+            )
 
         await cloud_uploader.append_report_line_to_cloud_async(
             remote_folder_path=cloud_paths["date_folder_path"],
@@ -843,9 +1005,12 @@ class Main:
                     interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                     if interests:
                         self._log_interests_shape(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
-                        interests = merge_overlapping_interests(interests)
-                        collected.extend(interests)
-                        en = max(interest["end_time"] for interest in interests)
+                        merged = self._merge_interests_safe(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
+                        if merged is None:
+                            return
+                        if merged:
+                            collected.extend(merged)
+                            en = max(interest["end_time"] for interest in merged)
 
                     main_funcs.save_new_reg_last_upload_time(reg_id, en)
                     cur = en_dt + datetime.timedelta(seconds=1)
@@ -858,9 +1023,12 @@ class Main:
                     interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                     if interests:
                         self._log_interests_shape(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
-                        interests = merge_overlapping_interests(interests)
-                        collected.extend(interests)
-                        en = max(interest["end_time"] for interest in interests)
+                        merged = self._merge_interests_safe(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
+                        if merged is None:
+                            return
+                        if merged:
+                            collected.extend(merged)
+                            en = max(interest["end_time"] for interest in merged)
                     main_funcs.save_new_reg_last_upload_time(reg_id, en)
 
             # --- 2) Recheck-проход от verified_until к now ---
@@ -877,15 +1045,18 @@ class Main:
                 recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
                 if recheck_interests:
                     self._log_interests_shape(reg_id, "RECHECK_BEFORE_MERGE", recheck_interests)
-                    recheck_interests = merge_overlapping_interests(recheck_interests)
-                    # ВАЖНО: не добавляем их в collected, а синхронизируем с облаком
-                    await self._sync_recheck_with_cloud(
-                        reg_id=reg_id,
-                        recheck_interests=recheck_interests,
-                        st=st,
-                        en=en,
-                        time_fmt=TIME_FMT,
-                    )
+                    merged_recheck = self._merge_interests_safe(reg_id, "RECHECK_BEFORE_MERGE", recheck_interests)
+                    if merged_recheck is None:
+                        return
+                    if merged_recheck:
+                        # ВАЖНО: не добавляем их в collected, а синхронизируем с облаком
+                        await self._sync_recheck_with_cloud(
+                            reg_id=reg_id,
+                            recheck_interests=merged_recheck,
+                            st=st,
+                            en=en,
+                            time_fmt=TIME_FMT,
+                        )
 
                 # фиксируем, что этот интервал проверен
                 main_funcs.save_reg_verified_until(reg_id, en)
@@ -908,14 +1079,19 @@ class Main:
                     long_recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st_long, en_long)
                     if long_recheck_interests:
                         self._log_interests_shape(reg_id, "LONG_RECHECK_BEFORE_MERGE", long_recheck_interests)
-                        long_recheck_interests = merge_overlapping_interests(long_recheck_interests)
-                        await self._sync_recheck_with_cloud(
-                            reg_id=reg_id,
-                            recheck_interests=long_recheck_interests,
-                            st=st_long,
-                            en=en_long,
-                            time_fmt=TIME_FMT,
+                        merged_long = self._merge_interests_safe(
+                            reg_id, "LONG_RECHECK_BEFORE_MERGE", long_recheck_interests
                         )
+                        if merged_long is None:
+                            return
+                        if merged_long:
+                            await self._sync_recheck_with_cloud(
+                                reg_id=reg_id,
+                                recheck_interests=merged_long,
+                                st=st_long,
+                                en=en_long,
+                                time_fmt=TIME_FMT,
+                            )
 
                     main_funcs.save_reg_verified_until_long(reg_id, en_long)
                     try:
