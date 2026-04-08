@@ -103,13 +103,28 @@ def _load_states() -> dict:
     """
     try:
         with open(STATES_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
-        return {"regs": {}}
+        return {"trucks": {}}
     except json.JSONDecodeError as e:
         # Коррупт. Логируем и пробуем не дать упасть — отдаём пустую структуру.
         logger.error("states.json is corrupted: %s", e)
-        return {"regs": {}}
+        return {"trucks": {}}
+
+    if not isinstance(data, dict):
+        return {"trucks": {}}
+    data.setdefault("trucks", {})
+    # Legacy regs → trucks (однократно; сохраняем сразу после миграции)
+    try:
+        from interests_fetcher.truck_state import consolidate_trucks_by_mdvr, migrate_regs_to_trucks_if_needed
+
+        migrated = migrate_regs_to_trucks_if_needed(data)
+        consolidate_trucks_by_mdvr(data)
+        if migrated:
+            _atomic_save_states(data)
+    except Exception as e:
+        logger.error("states migration failed: %s", e)
+    return data
 
 
 def _sanitize_for_json(obj):

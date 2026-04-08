@@ -1,6 +1,7 @@
 import os
 import asyncio
 import datetime
+from contextlib import asynccontextmanager
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Security, Depends
@@ -58,23 +59,28 @@ async def get_all_devices_from_cms() -> list[dict]:
 
 
 def get_reg_id_by_car_num_local(car_num: str) -> Optional[str]:
-    """Поиск reg_id по госномеру машины в states.json"""
+    """Поиск reg_id (mdvr) по госномеру машины в states.json (trucks[].truck_info)."""
     try:
         from interests_fetcher.data import settings
         import json
-        
-        with open(settings.states, 'r', encoding='utf-8') as f:
+
+        with open(settings.states, "r", encoding="utf-8") as f:
             states = json.load(f)
-        
-        regs = states.get('regs', {})
-        for reg_id, reg_info in regs.items():
-            plate = reg_info.get('plate', '')
+
+        search_plate = car_num.upper().replace(" ", "").replace("-", "")
+        trucks = states.get("trucks") or {}
+        for _tid, row in trucks.items():
+            if not isinstance(row, dict):
+                continue
+            ti = row.get("truck_info") or {}
+            plate = ti.get("plate") or ""
             if not plate:
                 continue
-            plate = plate.upper().replace(' ', '')
-            search_plate = car_num.upper().replace(' ', '')
-            if plate == search_plate:
-                return reg_id
+            pnorm = str(plate).upper().replace(" ", "").replace("-", "")
+            if pnorm == search_plate:
+                mid = ti.get("id")
+                if mid:
+                    return str(mid)
         return None
     except Exception:
         return None
@@ -285,7 +291,30 @@ class StopsRequest(BaseModel):
         return v
 
 
-app = FastAPI(title="interests_fetcher API")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    from interests_fetcher.logger import logger
+    from interests_fetcher.vehicle_sync import (
+        run_periodic_trucks_sync_after_delay,
+        sync_trucks_from_gate,
+        trucks_sync_interval_sec,
+    )
+
+    try:
+        await sync_trucks_from_gate()
+    except Exception as e:
+        logger.exception("[vehicle_sync] initial sync failed: %s", e)
+    interval = trucks_sync_interval_sec()
+    sync_task = asyncio.create_task(run_periodic_trucks_sync_after_delay(interval))
+    yield
+    sync_task.cancel()
+    try:
+        await sync_task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="interests_fetcher API", lifespan=_lifespan)
 
 
 async def _get_main_logged_in() -> Main:
@@ -370,6 +399,16 @@ async def find_stops_api(req: StopsRequest, authorized: bool = Depends(verify_ap
         radius_m=req.radius_m,
     )
     return res
+
+
+@app.post("/sync-trucks", summary="Подтянуть траки с cms_gate (vehicle manager) в states.json")
+async def sync_trucks_api(authorized: bool = Depends(verify_api_key)):
+    from interests_fetcher.vehicle_sync import sync_trucks_from_gate
+
+    try:
+        return await sync_trucks_from_gate()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 if __name__ == "__main__":

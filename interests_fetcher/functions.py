@@ -1,6 +1,12 @@
 from interests_fetcher.logger import logger
 from interests_fetcher.data import settings
 from interests_fetcher.filelocker import FileLock, _load_states, _atomic_save_states, LOCK_PATH
+from interests_fetcher.truck_state import (
+    ensure_truck_row_for_mdvr,
+    ensure_truck_structure_inplace,
+    find_truck_id_by_mdvr,
+    flatten_truck_for_pipeline,
+)
 from typing import Iterable, Iterator, Tuple, Dict, Any, Optional
 from typing import List
 import subprocess
@@ -15,28 +21,6 @@ import os
 import re
 
 
-
-def _default_new_reg_info(plate=None):
-    last_upload = datetime.datetime.today() - datetime.timedelta(days=7)
-    last_upload_str = last_upload.strftime("%Y-%m-%d %H:%M:%S")
-    return {
-        "ignore": False,
-        "interests": [],
-        "chanel_id": 0,
-        "last_upload_time": last_upload_str,
-        # новая служебная метка: до какого момента мы уже делали "проверочный" проход
-        "verified_until": last_upload_str,
-        # длинный recheck раз в сутки
-        "verified_until_long": last_upload_str,
-        "by_trigger": 1,
-        "by_stops": 0,
-        "by_door_limit_switch": 0,
-        "by_lifting_limit_switch": 1,
-        "continuous": 0,
-        "euro_container_alarm": 4,
-        "kgo_container_alarm": 3,
-        "plate": plate,
-    }
 
 def rename_file_on_disk(path: str, new_name: str) -> str:
     """
@@ -193,65 +177,50 @@ def convert_video_file(input_video_path: str, output_dir: str = None,
     return output_video_path
 
 
-def _ensure_alarms_fields(regs: dict, reg_id: str = None) -> bool:
-    changed = False
-    target_ids = [reg_id] if reg_id else list(regs.keys())
-    for rid in target_ids:
-        reg = regs.get(rid) or {}
-        if "euro_container_alarm" not in reg:
-            reg["euro_container_alarm"] = 4
-            changed = True
-        if "verified_until_long" not in reg:
-            vt = reg.get("verified_until")
-            if vt:
-                reg["verified_until_long"] = vt
-            else:
-                last_upload = datetime.datetime.today() - datetime.timedelta(days=7)
-                reg["verified_until_long"] = last_upload.strftime("%Y-%m-%d %H:%M:%S")
-            changed = True
-        regs[rid] = reg
-    return changed
-
-
-def ensure_alarms_structure_inplace(regs: dict, reg_id: str | None = None) -> bool:
+def ensure_alarms_structure_inplace(states: dict, reg_id: str | None = None) -> bool:
     """
-    НИЧЕГО НЕ ПИШЕТ В ФАЙЛ. Только правит regs in-place.
+    НИЧЕГО НЕ ПИШЕТ В ФАЙЛ. Только правит trucks in-place (по mdvr или все).
     Возвращает True, если структура была дополнена/исправлена.
     """
+    trucks = states.setdefault("trucks", {})
     changed = False
     if reg_id is None:
-        for rid in list(regs.keys()):
-            if _ensure_alarms_fields(regs, rid):
+        for tid in list(trucks.keys()):
+            if ensure_truck_structure_inplace(trucks[tid]):
                 changed = True
         return changed
-    else:
-        return _ensure_alarms_fields(regs, reg_id)
+    tid = find_truck_id_by_mdvr(states, reg_id)
+    if not tid:
+        return False
+    return ensure_truck_structure_inplace(trucks[tid])
 
 
 def save_new_interests(reg_id, interests):
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        if reg_id not in regs:
-            regs[reg_id] = _default_new_reg_info()
-        ensure_alarms_structure_inplace(regs, reg_id)
-        regs[reg_id]["interests"] = interests  # <-- тут был баг: раньше писалось в "states"
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        states["trucks"][tid]["interests"] = interests  # <-- тут был баг: раньше писалось в "states"
         _atomic_save_states(states)
 
 def _get_processed_set(reg_id: str) -> set[str]:
     with FileLock(LOCK_PATH):
         states = _load_states()
-        reg = states.setdefault("regs", {}).setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(states["regs"], reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
         processed = reg.get("processed_interests", [])
         return set(processed)
 
 def _save_processed(reg_id: str, name: str, keep_last: int = 1000):
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
         arr = reg.get("processed_interests", [])
         if name not in arr:
             arr.append(name)
@@ -276,11 +245,10 @@ def clean_interests(reg_id):
     with FileLock(LOCK_PATH):
         logger.debug("Cleaning interests in states.json")
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        if reg_id not in regs:
-            regs[reg_id] = _default_new_reg_info()
-        ensure_alarms_structure_inplace(regs, reg_id)
-        regs[reg_id]["interests"] = []
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        states["trucks"][tid]["interests"] = []
         _atomic_save_states(states)
 
 
@@ -288,29 +256,24 @@ def clean_interests(reg_id):
 def get_reg_info(reg_id: str):
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        created = False
-        if reg_id not in regs:
-            regs[reg_id] = _default_new_reg_info()
-            created = True
-        changed = ensure_alarms_structure_inplace(regs, reg_id) or created
+        _, _, created = ensure_truck_row_for_mdvr(states, reg_id)
+        changed = ensure_alarms_structure_inplace(states, reg_id) or created
         if changed:
             _atomic_save_states(states)
-        return json.loads(json.dumps(regs[reg_id]))
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        return flatten_truck_for_pipeline(states["trucks"][tid])
 
 
 
 def create_new_reg(reg_id, plate):
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        if reg_id in regs:
-            return json.loads(json.dumps(regs[reg_id]))
-        regs[reg_id] = _default_new_reg_info(plate=plate)
-        # ensure — только in-place
-        ensure_alarms_structure_inplace(regs, reg_id)
+        tid, row, created = ensure_truck_row_for_mdvr(states, reg_id, plate=plate)
+        if not created:
+            return flatten_truck_for_pipeline(row)
+        ensure_alarms_structure_inplace(states, reg_id)
         _atomic_save_states(states)
-        return json.loads(json.dumps(regs[reg_id]))
+        return flatten_truck_for_pipeline(states["trucks"][tid])
 
 
 def save_reg_verified_until(reg_id: str, timestamp: str):
@@ -328,9 +291,10 @@ def save_reg_verified_until(reg_id: str, timestamp: str):
 
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
 
         cur_str = reg.get("verified_until")
         cur_dt = None
@@ -365,9 +329,10 @@ def save_reg_verified_until_long(reg_id: str, timestamp: str):
 
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
 
         cur_str = reg.get("verified_until_long")
         cur_dt = None
@@ -397,9 +362,10 @@ def save_new_reg_last_upload_time(reg_id: str, timestamp: str):
 
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
 
         cur_str = reg.get("last_upload_time")
         cur_dt = None
@@ -663,27 +629,26 @@ def merge_overlapping_interests(interests: List[dict]) -> List[dict]:
 def get_pending_interests(reg_id: str) -> list[dict]:
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-
-        reg = regs.get(reg_id)
-        if reg is None:
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
             # Жёсткая ситуация: в файле нет такого регистратора.
             # Мы не создаём дефолт (чтобы не потерять данные молча),
             # а возвращаем пустой список. Логируем warning.
             logger.warning(f"{reg_id}: get_pending_interests -> регистратор не найден в states.json")
             return []
 
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
         return list(reg.get("pending_interests", []))
 
 
 def set_pending_interests(reg_id: str, interests: list[dict]) -> None:
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
-        reg["pending_interests"] = list(interests)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        states["trucks"][tid]["pending_interests"] = list(interests)
         _atomic_save_states(states)
 
 def append_pending_interests(reg_id: str, interests: list[dict]) -> None:
@@ -691,9 +656,10 @@ def append_pending_interests(reg_id: str, interests: list[dict]) -> None:
         return
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
         cur = reg.get("pending_interests", [])
         # дедуп по имени интереса
         seen = {it.get("name") for it in cur if isinstance(it, dict)}
@@ -708,9 +674,10 @@ def append_pending_interests(reg_id: str, interests: list[dict]) -> None:
 def remove_pending_interest(reg_id: str, interest_name: str) -> None:
     with FileLock(LOCK_PATH):
         states = _load_states()
-        regs = states.setdefault("regs", {})
-        reg = regs.setdefault(reg_id, _default_new_reg_info())
-        ensure_alarms_structure_inplace(regs, reg_id)
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
         cur = reg.get("pending_interests", [])
         reg["pending_interests"] = [it for it in cur if it.get("name") != interest_name]
         _atomic_save_states(states)

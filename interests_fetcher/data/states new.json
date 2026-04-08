@@ -1,0 +1,53 @@
+{
+    "regs": {
+        "018270348452": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "108410": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "108411": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "018270283642": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "018270283681": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "118270283681": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        },
+        "104039": {
+            "ignore": false,
+            "last_upload_time": "2026-04-07 10:54:24",
+            "verified_until": "2026-04-07 11:10:04",
+            "verified_until_long": "2026-04-07 11:10:04",
+            "pending_interests": []
+        }
+    }
+}

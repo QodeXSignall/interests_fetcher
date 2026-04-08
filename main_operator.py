@@ -10,6 +10,7 @@ from interests_fetcher.logger import logger, pipeline_event
 from interests_fetcher.data import settings
 from interests_fetcher import cms_gate_client
 from interests_fetcher import video_utils
+from interests_fetcher.vehicle_sync import run_periodic_trucks_sync_after_delay, sync_trucks_from_gate, trucks_sync_interval_sec
 import posixpath
 import traceback
 import datetime
@@ -858,6 +859,13 @@ class Main:
         logger.info("Mainloop has been launched with success.")
         self._running: set[asyncio.Task] = set()
         await self.login()
+
+        try:
+            await sync_trucks_from_gate()
+        except Exception as e:
+            logger.exception("[vehicle_sync] initial sync_trucks_from_gate failed: %s", e)
+        interval = trucks_sync_interval_sec()
+        asyncio.create_task(run_periodic_trucks_sync_after_delay(interval))
 
         while True:
             # важно: get_devices_online в thread, чтобы не блокировать loop

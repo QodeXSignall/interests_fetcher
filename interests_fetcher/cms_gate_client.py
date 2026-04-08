@@ -107,6 +107,91 @@ async def list_devices(status: str = "all", timeout_sec: float = 180.0) -> List[
     return devices  # type: ignore[return-value]
 
 
+async def list_trucks_page(
+    *,
+    limit: int = 1000,
+    offset: int = 0,
+    mdvr_id: Optional[str] = None,
+    mdvr_model: Optional[str] = None,
+    plate: Optional[str] = None,
+    timeout_sec: float = 120.0,
+) -> List[Dict[str, Any]]:
+    """
+    Одна страница списка траков: GET /trucks
+    """
+    client = _get_client()
+    url = f"{_get_base_url()}/trucks"
+    params: Dict[str, Any] = {"limit": limit, "offset": offset}
+    if mdvr_id:
+        params["mdvr_id"] = mdvr_id
+    if mdvr_model:
+        params["mdvr_model"] = mdvr_model
+    if plate:
+        params["plate"] = plate
+    logger.debug(f"[cms_gate_client] GET {url} limit={limit} offset={offset}")
+    resp = await client.get(url, params=params, headers=_auth_headers(), timeout=timeout_sec)
+    if resp.status_code >= 400:
+        logger.error(
+            f"[cms_gate_client] list_trucks failed status={resp.status_code} body={resp.text}"
+        )
+        resp.raise_for_status()
+    body = resp.json()
+    trucks = body.get("trucks") or []
+    if not isinstance(trucks, list):
+        raise RuntimeError(f"Unexpected trucks type from cms_gate: {type(trucks)}")
+    return trucks  # type: ignore[return-value]
+
+
+async def list_all_trucks(
+    *,
+    page_size: int = 1000,
+    timeout_sec: float = 120.0,
+) -> List[Dict[str, Any]]:
+    """
+    Все траки с пагинацией по offset.
+    """
+    out: List[Dict[str, Any]] = []
+    offset = 0
+    while True:
+        page = await list_trucks_page(
+            limit=page_size, offset=offset, timeout_sec=timeout_sec
+        )
+        if not page:
+            break
+        out.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return out
+
+
+async def get_truck_by_mdvr_id(
+    mdvr_id: str,
+    timeout_sec: float = 60.0,
+) -> Optional[Dict[str, Any]]:
+    """
+    GET /trucks/by-mdvr-id/{mdvr_id}
+    """
+    client = _get_client()
+    from urllib.parse import quote
+
+    safe = quote(mdvr_id, safe="")
+    url = f"{_get_base_url()}/trucks/by-mdvr-id/{safe}"
+    logger.debug(f"[cms_gate_client] GET {url}")
+    resp = await client.get(url, headers=_auth_headers(), timeout=timeout_sec)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code >= 400:
+        logger.error(
+            f"[cms_gate_client] get_truck_by_mdvr_id failed status={resp.status_code} body={resp.text}"
+        )
+        resp.raise_for_status()
+    body = resp.json()
+    if not isinstance(body, dict):
+        raise RuntimeError(f"Unexpected truck body type from cms_gate: {type(body)}")
+    return body
+
+
 async def get_tracks_and_alarms(
     reg_id: str,
     start_time: str,

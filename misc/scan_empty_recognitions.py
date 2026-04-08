@@ -67,12 +67,13 @@ def _project_plates_from_states() -> set[str]:
         print(f"[WARN] Не удалось прочитать states.json для фильтрации plate: {e}")
         return set()
 
-    regs = states_data.get("regs") or {}
+    trucks = states_data.get("trucks") or {}
     project_plates: set[str] = set()
-    for reg_info in regs.values():
-        if not isinstance(reg_info, dict):
+    for row in trucks.values():
+        if not isinstance(row, dict):
             continue
-        plate = reg_info.get("plate")
+        ti = row.get("truck_info") or {}
+        plate = ti.get("plate")
         if isinstance(plate, str):
             plate_norm = plate.strip()
             if plate_norm:
