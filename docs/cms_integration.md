@@ -1,138 +1,70 @@
-### CMS-интеграция: границы и точки входа
+### CMS и cms_gate: границы в коде interests_fetcher
 
-**Назначение файла**: зафиксировать все места в текущем коде, где сервис напрямую взаимодействует с CMS, чтобы использовать это как ориентир при выносе логики в отдельный сервис `cms_gate`.
+**Назначение:** зафиксировать, как в текущей версии устроен доступ к данным CMS. Оглавление: [README.md](README.md). Высокий уровень: [overview.md](overview.md).
 
----
-
-### 1. Модули низкого уровня CMS
-
-- **`interests_fetcher/cms_interface/cms_http.py`**
-  - Глобальный `httpx.AsyncClient` для CMS (`get_cms_async_client`, `close_cms_async_client`).
-  - Таймауты, лимиты соединений, HTTP/2.
-
-- **`interests_fetcher/cms_interface/limits.py`**
-  - Асинхронные семафоры и лимиты:
-    - `get_cms_global_sem` — общий лимит одновременных запросов к CMS.
-    - `get_device_sem` — лимит на устройство.
-    - `get_pages_sem` — параллельная загрузка страниц треков/алармов.
-    - `get_frame_sem`, `_get_video_sem_for` — лимиты по кадрам и скачиванию видео.
-
-- **`interests_fetcher/cms_interface/cms_api.py`**
-  - Обёртки над HTTP API CMS:
-    - Аутентификация: `login`.
-    - Устройства: `get_online_devices`, `get_offline_devices`, `get_device_status_async`.
-    - Треки: `get_device_track_page_async`, `get_device_track_all_pages_async`.
-    - Алармы: `get_device_alarm_page_async`, `get_device_alarm_all_pages_async`, `flatten_alarms_pages`.
-    - Видео: `get_video`, `download_single_clip_per_channel`, `delete_videos_except`, `execute_download_task`, `wait_and_get_dwn_url`.
-    - Кадры: `extract_edge_frames_bytes`.
-  - Все функции используют `cms_http` и лимиты из `limits`.
+**Правило для продакшена:** любое **получение данных из CMS и скачивание видео по интересам** для основного пайплайна — **только через HTTP к `cms_gate`** (`cms_gate_client`), а не через `cms_interface/cms_api`.
 
 ---
 
-### 2. Модули доменной логики, зависящие от данных CMS
+### 1. Клиент к cms_gate
 
-- **`interests_fetcher/cms_interface/functions.py`**
-  - Работает с **данными**, полученными из CMS (JSON треков и алармов), но сам HTTP-запросов не делает.
-  - Основные функции:
-    - `prepare_alarms` — нормализация алармов, определение типа груза, подготовка к поиску по времени.
-    - `find_interests_by_lifting_switches` — поиск интересов по трекам и алармам.
-    - `find_stops_near_sites_by_date` — поиск остановок около площадок за выбранный день (использует треки из CMS).
-    - Вспомогательные функции (`get_interest_from_track`, `estimate_move_start_kmhps`, и др.).
-  - Зависит от формата JSON, который возвращают функции из `cms_api`.
+**`interests_fetcher/cms_gate_client.py`**
 
----
+Используется `main_operator` и REST (`api.py` для списка устройств и разрешения `reg_id`).
 
-### 3. Использование CMS в основном воркере
+| Операция в коде | HTTP к cms_gate |
+|-----------------|-----------------|
+| `list_devices` | `GET /api/v1/devices` |
+| `get_tracks_and_alarms` | `GET /api/v1/tracks-alarms` |
+| `download_clips_for_interest` | `POST /api/v1/download-clips-for-interest` |
+| `get_device_status` | `GET /api/v1/devices/{reg_id}/status` |
+| `list_all_trucks` / страницы траков | `GET /api/v1/trucks` (vehicle manager) |
 
-- **`main_operator.py`**
-  - Импорты:
-    - `from interests_fetcher.cms_interface import cms_http`
-    - `from interests_fetcher.cms_interface import cms_api`
-    - `from interests_fetcher.cms_interface import functions as cms_api_funcs`
-  - Точки вызова CMS:
-    - `Main.login` — вызывает `cms_api.login`, сохраняет `self.jsession`.
-    - `Main.get_devices_online` — вызывает `cms_api.get_online_devices(self.jsession)` и парсит `"onlines"`.
-    - `Main.get_interests_async`:
-      - Параллельно вызывает:
-        - `cms_api.get_device_track_all_pages_async(self.jsession, reg_id, start_time, stop_time)`.
-        - `cms_api.get_device_alarm_all_pages_async(self.jsession, reg_id, start_time, stop_time)`.
-      - Передаёт результаты в `cms_api_funcs.prepare_alarms` и `cms_api_funcs.find_interests_by_lifting_switches`.
-    - `Main._process_one_interest`:
-      - `cms_api.download_single_clip_per_channel` — скачивание клипов по интересу.
-      - `cms_api.delete_videos_except` — удаление временных видеофайлов.
-    - `Main.process_frames_before_after`:
-      - `cms_api.extract_edge_frames_bytes` — извлечение кадров из видео.
-  - В функции `_run` (в конце файла) при завершении mainloop вызывается `cms_http.close_cms_async_client`.
+Учётные данные CMS в процессе `interests_fetcher` для этих вызовов **не нужны** — их знает только `cms_gate`. Нужны `CMS_GATE_BASE_URL`, `CMS_GATE_API_TOKEN`.
 
 ---
 
-### 4. Использование CMS в REST API (`interests_fetcher/api.py`)
+### 2. Доменная логика без HTTP к CMS
 
-- **`get_all_devices_from_cms(jsession)`**
-  - Импортирует `interests_fetcher.cms_interface.cms_api`.
-  - Вызывает:
-    - `cms_api.get_online_devices`.
-    - `cms_api.get_offline_devices`.
-  - Объединяет онлайн/оффлайн устройства в один список.
+**`interests_fetcher/cms_interface/functions.py`**
 
-- **`get_reg_id_by_car_num_cms`**
-  - Использует `get_all_devices_from_cms` для поиска `reg_id` по госномеру.
-
-- **`resolve_reg_id`**
-  - При отсутствии `reg_id` и неуспехе локального поиска:
-    - При необходимости логинится в CMS: `cms_api.login`.
-    - Вызывает `get_reg_id_by_car_num_cms`.
-
-- **Эндпоинты FastAPI**
-  - `POST /compare-interests`
-    - Через `_get_main_logged_in` создаёт `Main` и логинится в CMS.
-    - Использует `resolve_reg_id` (который может логиниться и ходить в CMS).
-    - Вызывает `Main.get_interests_async`, который запрашивает треки/алармы из CMS.
-  - `POST /get-interests`
-    - Аналогично логинится в CMS и вызывает `Main.get_interests_async`.
-  - `POST /find-stops`
-    - Логинится через `_get_main_logged_in`, вызывает `resolve_reg_id`.
-    - Далее вызывает `cms_funcs.find_stops_near_sites_by_date`, который внутри использует данные треков из CMS.
+Работает с **готовыми** списками треков и алармов (словари из JSON). Вызывается из `main_operator` после `cms_gate_client.get_tracks_and_alarms`: `prepare_alarms`, `find_interests_by_lifting_switches`, вспомогательные функции. **Исходящих запросов к CMS нет.**
 
 ---
 
-### 5. Прочие использования CMS
+### 3. main_operator.py
 
-- **`misc/get_interests.py`**
-  - Для отладки:
-    - Создаёт `Main`, вызывает `await inst.login()` (через `cms_api.login`).
-    - Напрямую вызывает `cms_api.get_device_alarm_all_pages_async` для анализа алармов.
-    - Использует `cms_interface.functions.prepare_alarms` и `Main.get_interests_async`.
-
-- **`interests_fetcher/tests/main_tests.py`**
-  - Импортирует `interests_fetcher.cms_interface.cms_api`.
-  - В тесте `test_get_img` (помечен `@SkipTest`) вызывает `cms_api.download_video(...)`.
+- `login` — заглушка (`jsession` не используется); доступ к CMS через gate.
+- `get_devices_online` → `cms_gate_client.list_devices`.
+- `get_interests_async` → `cms_gate_client.get_tracks_and_alarms`, далее только `cms_api_funcs.*` над данными.
+- Скачивание клипов по интересу → `cms_gate_client.download_clips_for_interest`.
+- Кадры из локальных файлов — `video_utils` (ffmpeg и т.д.), не CMS API.
 
 ---
 
-### 6. Конфигурация CMS
+### 4. REST API (`interests_fetcher/api.py`)
 
-- **`interests_fetcher/data/settings.py`**
-  - Описывает:
-    - `cms_host` — базовый URL CMS (schema + ip + port).
-    - `cms_login`, `cms_password` — учётные данные CMS (из окружения).
-    - Параметры лимитов и поведения:
-      - Раздел `[Process]` — `MAX_CMS_CONCURRENT`, `MAX_CMS_PER_DEVICE`, `MAX_DEVICES_CONCURRENT`, `MAX_INTERESTS_PER_DEVICE` и др.
-      - Раздел `[Semafor]` — `tracks_page_request_max` и пр.
-  - Эти параметры используются в:
-    - `interests_fetcher/cms_interface/limits.py`.
-    - `main_operator.py`.
+- Список устройств и поиск `reg_id` по номеру — **`cms_gate_client`** (устройства с gate, локальный `states.json` для первого шага).
+- Эндпоинты с интересами используют `Main` / те же пути, что и пайплайн (данные CMS через gate).
+- **find-stops** в этом сервисе отсутствует — только в **cms_gate**.
 
 ---
 
-### 7. Итоговая граница для выноса в `cms_gate`
+### 5. Модули `cms_interface/cms_api.py`, `cms_http.py`, `limits.py`
 
-В отдельный сервис `cms_gate` логично вынести:
+Остаются в репозитории как **общая библиотека** вызовов CMS (форматы, совместимость). **Текущий основной сценарий** (`USE_CMS_GATE=1`) их для загрузки треков/клипов/списка устройств **не использует**. Возможны вызовы из **тестов**, **misc/**-скриптов, старого кода — при доработке новых функций предпочтительно расширять **cms_gate** и клиент `cms_gate_client`, а не добавлять прямые вызовы CMS в fetcher.
 
-- Низкоуровневые модули работы с CMS:
-  - `cms_http`, `limits`, `cms_api` и связанные с ними настройки из `settings`.
-- Логику авторизации и получения данных CMS, к которым сейчас обращается:
-  - `main_operator.Main` (`login`, `get_devices_online`, `get_interests_async`, скачивание видео, извлечение кадров).
-  - REST-слой в `interests_fetcher/api.py` (`get_all_devices_from_cms`, `get_reg_id_by_car_num_cms`, `resolve_reg_id`).
-- При этом доменная логика анализа треков/алармов и поиска интересов (`cms_interface/functions.py`, `interest_merge_funcs.py`, очередь `pending_interests` в `functions.py`) останется в `interests_getter` и будет получать данные уже через HTTP/REST от `cms_gate`.
+---
 
+### 6. Конфигурация
+
+- **`interests_fetcher/data/config.cfg`** — лимиты пайплайна, `[Interests]`, `[QT_RM]`, `[Process]` и т.д.
+- **`.env`** — `USE_CMS_GATE`, `CMS_GATE_*`, WebDAV, `API_KEY` для входящего API этого сервиса.
+- Учётные данные **CMS** в fetcher для основного режима **не требуются** (их использует только `cms_gate`).
+
+---
+
+### 7. См. также
+
+- Контракт шлюза со стороны потребителя (кратко): [cms_gate_rest_api.md](cms_gate_rest_api.md).
+- Перенос find-stops: [find_stops_cms_gate.md](find_stops_cms_gate.md).

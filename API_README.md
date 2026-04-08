@@ -1,5 +1,7 @@
 # interests_fetcher REST API
 
+Структурированная документация (компоненты, CMS, контракт `cms_gate`, миграция find-stops): каталог [docs/](docs/README.md).
+
 ## Авторизация
 
 API защищён через API ключ в заголовке `X-API-Key`.
@@ -70,74 +72,35 @@ curl -H "X-API-Key: your_secret_api_key_here" http://localhost:8001/get-interest
 }
 ```
 
-### POST /find-stops
-Поиск остановок возле площадок
+### POST /find-stops — перенесено в cms_gate
 
-**Body:**
-```json
-{
-  "reg_id": "018270348452",
-  "date": "2025-12-17",
-  "radius_m": 120.0,
-  "sites": [
-    {"id": "16174", "lat": 53.72728, "lon": 56.37517},
-    {"id": "16186", "lat": 53.68652, "lon": 56.34846}
-  ]
-}
-```
+Эндпоинт удалён из этого сервиса. Используйте **`cms_gate`**: `POST /api/v1/find-stops` с заголовком `Authorization: Bearer <CMS_GATE_API_TOKEN>`. Тело запроса и формат ответа те же (`reg_id` или `car_num`, `date`, `sites`, `radius_m`).
 
-**Response:**
-```json
-[
-  {
-    "site_id": "16174",
-    "lat": 53.72728,
-    "lon": 56.37517,
-    "stops": [
-      {
-        "start": "2025-12-17 14:30:00",
-        "end": "2025-12-17 14:35:00",
-        "duration_sec": 300.0,
-        "distance_m": 45.2
-      }
-    ]
-  }
-]
+Пример:
+
+```bash
+curl -X POST "http://localhost:<cms_gate_port>/api/v1/find-stops" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $CMS_GATE_API_TOKEN" \
+  -d '{"reg_id":"018270348452","date":"2025-12-17","radius_m":120,"sites":[{"id":"1","lat":53.7,"lon":56.3}]}'
 ```
 
 ## Примеры запросов
 
-### С авторизацией (Python):
+### С авторизацией (Python)
+
 ```python
 import requests
 
 headers = {"X-API-Key": "your_secret_api_key_here"}
 data = {
     "reg_id": "018270348452",
-    "date": "2025-12-17",
-    "radius_m": 120,
-    "sites": [{"id": "site1", "lat": 53.7, "lon": 56.3}]
+    "start_time": "2025-12-17 00:00:00",
+    "end_time": "2025-12-17 23:59:59",
+    "merge_overlaps": True,
 }
-
-response = requests.post(
-    "http://localhost:8001/find-stops",
-    json=data,
-    headers=headers
-)
-print(response.json())
-```
-
-### С авторизацией (curl):
-```bash
-curl -X POST http://localhost:8001/find-stops \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_secret_api_key_here" \
-  -d '{
-    "reg_id": "018270348452",
-    "date": "2025-12-17",
-    "radius_m": 120,
-    "sites": [{"id": "site1", "lat": 53.7, "lon": 56.3}]
-  }'
+r = requests.post("http://localhost:8001/get-interests", json=data, headers=headers)
+print(r.json())
 ```
 
 ## Ошибки авторизации

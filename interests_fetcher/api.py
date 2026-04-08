@@ -12,7 +12,6 @@ from webdav3.exceptions import RemoteResourceNotFound
 
 from interests_fetcher import functions as main_funcs
 from interests_fetcher.interest_merge_funcs import merge_overlapping_interests
-from interests_fetcher.cms_interface import functions as cms_funcs
 from interests_fetcher.data import settings
 from interests_fetcher import cms_gate_client
 from main_operator import Main
@@ -263,34 +262,6 @@ class InterestRequest(BaseModel):
         return v
 
 
-class SiteItem(BaseModel):
-    id: str
-    lat: float
-    lon: float
-
-
-class StopsRequest(BaseModel):
-    reg_id: Optional[str] = Field(None, description="DevIDNO регистратора")
-    car_num: Optional[str] = Field(None, description="Госномер автомобиля")
-    date: str = Field(..., description="Дата в формате YYYY-MM-DD")
-    sites: List[SiteItem]
-    radius_m: float = 120.0
-
-    @validator("date")
-    def _check_date(cls, v):
-        try:
-            datetime.datetime.strptime(v, "%Y-%m-%d")
-        except Exception as e:
-            raise ValueError(f"date must be YYYY-MM-DD: {e}")
-        return v
-    
-    @validator("car_num")
-    def _check_reg_or_car(cls, v, values):
-        if not values.get("reg_id") and not v:
-            raise ValueError("Either reg_id or car_num must be provided")
-        return v
-
-
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     from interests_fetcher.logger import logger
@@ -386,19 +357,6 @@ async def get_interests_api(req: InterestRequest, authorized: bool = Depends(ver
     if req.merge_overlaps:
         interests = merge_overlapping_interests(interests)
     return {"count": len(interests), "interests": interests}
-
-
-@app.post("/find-stops")
-async def find_stops_api(req: StopsRequest, authorized: bool = Depends(verify_api_key)):
-    m = await _get_main_logged_in()
-    reg_id = await resolve_reg_id(req.reg_id, req.car_num)
-    res = await cms_funcs.find_stops_near_sites_by_date(
-        reg_id=reg_id,
-        sites=[s.dict() for s in req.sites],
-        date=req.date,
-        radius_m=req.radius_m,
-    )
-    return res
 
 
 @app.post("/sync-trucks", summary="Подтянуть траки с cms_gate (vehicle manager) в states.json")
