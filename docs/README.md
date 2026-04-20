@@ -12,3 +12,5 @@
 Размещение на одном хосте с CMS и `cms_gate`: [overview.md](overview.md), [DEPLOY_WINDOWS_SERVER.md](DEPLOY_WINDOWS_SERVER.md).
 
 Корневой файл [FIND_STOPS_API_INTEGRATION.md](../FIND_STOPS_API_INTEGRATION.md) — краткая ссылка; спецификация find-stops в **cms_gate** `docs/find_stops.md`.
+
+Обзор всей экосистемы (цель, модули, топология): [tracker-docs/README.md](../../tracker-docs/README.md).

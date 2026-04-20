@@ -17,6 +17,7 @@ import datetime
 import asyncio
 import shutil
 import os
+import httpx
 
 
 class Main:
@@ -219,6 +220,37 @@ class Main:
                 pipeline_event(
                     "devices_online_poll",
                     count=len(self._last_devices_online or []),
+                    fallback=True,
+                )
+            )
+            return self._last_devices_online or []
+        except httpx.HTTPError as e:
+            # Сетевые ошибки обращения к cms_gate (ConnectError, ReadError,
+            # TimeoutException, HTTPStatusError и т.п.) не должны убивать демон —
+            # отдаём последний известный список online-устройств как fallback.
+            fallback_count = len(self._last_devices_online or [])
+            logger.warning(
+                f"list_devices network error in cms_gate: {type(e).__name__}: {e}. "
+                f"Using last known online devices ({fallback_count})."
+            )
+            logger.warning(
+                pipeline_event(
+                    "devices_online_poll",
+                    count=fallback_count,
+                    fallback=True,
+                )
+            )
+            return self._last_devices_online or []
+        except Exception as e:
+            fallback_count = len(self._last_devices_online or [])
+            logger.exception(
+                f"list_devices unexpected error in cms_gate: {e}. "
+                f"Using last known online devices ({fallback_count})."
+            )
+            logger.warning(
+                pipeline_event(
+                    "devices_online_poll",
+                    count=fallback_count,
                     fallback=True,
                 )
             )
@@ -868,25 +900,32 @@ class Main:
         asyncio.create_task(run_periodic_trucks_sync_after_delay(interval))
 
         while True:
-            # важно: get_devices_online в thread, чтобы не блокировать loop
-            devices_online = await self.get_devices_online()
+            try:
+                # важно: get_devices_online в thread, чтобы не блокировать loop
+                devices_online = await self.get_devices_online()
 
-            for device_dict in devices_online:
-                reg_id = device_dict["did"]
-                plate = device_dict["vid"]
+                for device_dict in devices_online:
+                    reg_id = device_dict["did"]
+                    plate = device_dict["vid"]
 
-                # если девайс уже в работе — пропускаем
-                if reg_id in self.devices_in_progress:
-                    continue
+                    # если девайс уже в работе — пропускаем
+                    if reg_id in self.devices_in_progress:
+                        continue
 
-                async def _run_with_limit(rid, pl):
-                    async with self._get_devices_sem():
-                        await self.operate_device(rid, pl)
+                    async def _run_with_limit(rid, pl):
+                        async with self._get_devices_sem():
+                            await self.operate_device(rid, pl)
 
-                # Стартуем корутину и НЕ ждём всю пачку
-                t = asyncio.create_task(_run_with_limit(reg_id, plate))
-                self._running.add(t)
-                t.add_done_callback(self._running.discard)
+                    # Стартуем корутину и НЕ ждём всю пачку
+                    t = asyncio.create_task(_run_with_limit(reg_id, plate))
+                    self._running.add(t)
+                    t.add_done_callback(self._running.discard)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                # Защитный барьер: любая неожиданная ошибка в итерации
+                # не должна убивать mainloop. Логируем и идём на следующий тик.
+                logger.exception(f"mainloop iteration failed: {e}")
 
             await asyncio.sleep(120)
 
