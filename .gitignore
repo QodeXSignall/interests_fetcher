@@ -1,4 +1,3 @@
-qt_pvp/data/states.json
 /temp/*
 venv/
 *.zip
@@ -10,3 +9,5 @@ venv/
 *.xml
 .env
 .env.local
+interests_fetcher/data/states.json
+interests_fetcher/data/states*.json
