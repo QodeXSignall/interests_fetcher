@@ -192,6 +192,88 @@ async def get_truck_by_mdvr_id(
     return body
 
 
+async def get_truck_by_plate(
+    plate: str,
+    timeout_sec: float = 60.0,
+) -> Optional[Dict[str, Any]]:
+    """
+    GET /trucks/by-plate/{plate}
+    """
+    client = _get_client()
+    from urllib.parse import quote
+
+    safe = quote(plate, safe="")
+    url = f"{_get_base_url()}/trucks/by-plate/{safe}"
+    logger.debug(f"[cms_gate_client] GET {url}")
+    resp = await client.get(url, headers=_auth_headers(), timeout=timeout_sec)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code >= 400:
+        logger.error(
+            f"[cms_gate_client] get_truck_by_plate failed status={resp.status_code} body={resp.text}"
+        )
+        resp.raise_for_status()
+    body = resp.json()
+    if not isinstance(body, dict):
+        raise RuntimeError(f"Unexpected truck body type from cms_gate: {type(body)}")
+    return body
+
+
+def _looks_like_device_id(value: str) -> bool:
+    """
+    Эвристика: настоящий DevIDNO в CMS — строка из цифр (обычно 6-12+).
+    Всё остальное (кириллица, буквы госномера) трактуем как номер ТС.
+    """
+    v = (value or "").strip()
+    return bool(v) and v.isdigit() and len(v) >= 6
+
+
+async def resolve_device_id(value: str, *, timeout_sec: float = 60.0) -> Optional[str]:
+    """
+    Приводит 'что-то похожее на идентификатор ТС' к DevIDNO регистратора.
+
+    * если value уже похож на DevIDNO (только цифры) — возвращает как есть;
+    * иначе смотрит vehicle manager в cms_gate (`GET /trucks/by-plate/{value}`)
+      и берёт `mdvr.id`;
+    * если ничего не нашли — возвращает None (пусть решает caller).
+    """
+    v = (value or "").strip()
+    if not v:
+        return None
+    if _looks_like_device_id(v):
+        return v
+
+    try:
+        truck = await get_truck_by_plate(v, timeout_sec=timeout_sec)
+    except Exception as e:
+        logger.warning(
+            f"[cms_gate_client] resolve_device_id: get_truck_by_plate failed for {v!r}: {e!r}"
+        )
+        truck = None
+
+    if truck:
+        mdvr = truck.get("mdvr") or {}
+        mid = mdvr.get("id") if isinstance(mdvr, dict) else None
+        if mid:
+            return str(mid)
+
+    return None
+
+
+def _reg_id_looks_like_plate(value: str) -> bool:
+    v = (value or "").strip()
+    return bool(v) and not _looks_like_device_id(v)
+
+
+def _warn_if_reg_id_looks_like_plate(op: str, reg_id: str) -> None:
+    if _reg_id_looks_like_plate(reg_id):
+        logger.warning(
+            f"[cms_gate_client] {op}: reg_id={reg_id!r} выглядит как госномер, "
+            f"а не DevIDNO. CMS почти наверняка вернёт пустой результат. "
+            f"Отрезолвьте номер через resolve_device_id() до вызова."
+        )
+
+
 async def get_tracks_and_alarms(
     reg_id: str,
     start_time: str,
@@ -203,6 +285,7 @@ async def get_tracks_and_alarms(
     """
     client = _get_client()
     url = f"{_get_base_url()}/tracks-alarms"
+    _warn_if_reg_id_looks_like_plate("get_tracks_and_alarms", reg_id)
     logger.debug(
         f"[cms_gate_client] GET {url} reg_id={reg_id} start_time={start_time} end_time={end_time}"
     )
@@ -233,6 +316,7 @@ async def get_device_status(reg_id: str) -> Dict[str, Any]:
     """
     client = _get_client()
     url = f"{_get_base_url()}/devices/{reg_id}/status"
+    _warn_if_reg_id_looks_like_plate("get_device_status", reg_id)
     logger.debug(f"[cms_gate_client] GET {url}")
     resp = await client.get(url, headers=_auth_headers())
     if resp.status_code >= 400:
@@ -258,6 +342,7 @@ async def download_clips_for_interest(
     """
     client = _get_client()
     url = f"{_get_base_url()}/download-clips-for-interest"
+    _warn_if_reg_id_looks_like_plate("download_clips_for_interest", reg_id)
     payload: Dict[str, Any] = {"reg_id": reg_id, "interest": interest}
     if channels is not None:
         payload["channels"] = channels

@@ -54,6 +54,704 @@ class Main:
             self._per_device_sem[reg_id] = sem
         return sem
 
+    def _detect_and_upsert_gaps(
+        self,
+        *,
+        reg_id: str,
+        tracks: list,
+        window_start: str,
+        window_end: str,
+    ) -> None:
+        """
+        Прогоняет `detect_gaps` по tracks в окне [window_start, window_end] и
+        пушит найденные разрывы в states.json через `upsert_gap`.
+
+        Вызывается изнутри `get_interests_async` при успешном результате, т.е.
+        один раз на успешный forward-запрос треков. Сам по себе НЕ фильтрует
+        выгрузку — только фиксирует дыры (Этап 1 — observability).
+        """
+        if not tracks:
+            return
+
+        try:
+            detected = cms_api_funcs.detect_gaps(
+                tracks=tracks,
+                window_start=window_start,
+                window_end=window_end,
+                reg_id=reg_id,
+            )
+        except Exception:
+            logger.exception(f"{reg_id}: detect_gaps failed")
+            return
+
+        if not detected:
+            return
+
+        for g in detected:
+            main_funcs.upsert_gap(
+                reg_id=reg_id,
+                gap_start=g["gap_start"],
+                gap_end=g["gap_end"],
+            )
+
+        logger.info(
+            f"{reg_id}: detect_gaps в окне [{window_start} → {window_end}] -> "
+            f"найдено {len(detected)} разрыв(ов)"
+        )
+
+    def _recompute_gap_links(self, reg_id: str) -> None:
+        """
+        Пересчитывает связи между `pending` gap'ами и pending_interests
+        регистратора: обновляет `linked_interest_names` у gap'ов и
+        `blocking_gap_ids` у интересов.
+
+        Правило пересечения: gap пересекается с интересом, если
+            gap_end   >= interest.start - BUFFER
+            AND gap_start <= interest.end   + BUFFER
+        где BUFFER = PUBLICATION_GAP_BUFFER_MIN минут.
+
+        Этап 1: блокировка выгрузки ещё не включена — пишем только поля.
+        """
+        gaps = main_funcs.get_gaps(reg_id)
+        pending = main_funcs.get_pending_interests(reg_id)
+        if not gaps and not pending:
+            return
+
+        buffer_min = settings.config.getint(
+            "Interests", "PUBLICATION_GAP_BUFFER_MIN", fallback=5
+        )
+        buffer = datetime.timedelta(minutes=buffer_min)
+        TIME_FMT = self.TIME_FMT
+
+        pending_parsed: list[tuple[str, datetime.datetime, datetime.datetime]] = []
+        for it in pending:
+            if not isinstance(it, dict):
+                continue
+            nm = it.get("name")
+            st = it.get("start_time")
+            en = it.get("end_time")
+            if not (nm and st and en):
+                continue
+            try:
+                s_dt = datetime.datetime.strptime(st, TIME_FMT)
+                e_dt = datetime.datetime.strptime(en, TIME_FMT)
+            except Exception:
+                continue
+            pending_parsed.append((nm, s_dt, e_dt))
+
+        blocking_by_name: dict[str, list[str]] = {nm: [] for nm, _, _ in pending_parsed}
+
+        for g in gaps:
+            if not isinstance(g, dict) or g.get("status") != "pending":
+                continue
+            gid = g.get("id")
+            try:
+                gs = datetime.datetime.strptime(g.get("gap_start", ""), TIME_FMT)
+                ge = datetime.datetime.strptime(g.get("gap_end", ""), TIME_FMT)
+            except Exception:
+                continue
+
+            linked_names: list[str] = []
+            for nm, s_dt, e_dt in pending_parsed:
+                if ge >= (s_dt - buffer) and gs <= (e_dt + buffer):
+                    linked_names.append(nm)
+                    if gid:
+                        blocking_by_name[nm].append(gid)
+
+            if sorted(g.get("linked_interest_names") or []) != sorted(linked_names):
+                main_funcs.update_gap(reg_id, gid, linked_interest_names=linked_names)
+
+        if blocking_by_name:
+            main_funcs.set_blocking_gap_ids(reg_id, blocking_by_name)
+
+    def _cluster_gaps_for_recheck(
+        self,
+        gaps: list[dict],
+        context_min: int,
+        now: datetime.datetime,
+    ) -> list[dict]:
+        """
+        Группирует gap'ы в кластеры, где "жирные" query-окна
+        (`[gap_start - context, gap_end + context]`) пересекаются.
+
+        Возвращает:
+            [
+                {
+                    "query_start": "YYYY-... HH:...",
+                    "query_end":   "YYYY-... HH:...",
+                    "gaps": [gap_dict, ...],
+                },
+                ...
+            ]
+
+        query_end никогда не выходит за `now` (не идём в будущее).
+        """
+        if not gaps:
+            return []
+        context = datetime.timedelta(minutes=context_min)
+        items: list[tuple[datetime.datetime, datetime.datetime, dict]] = []
+        for g in gaps:
+            try:
+                gs = datetime.datetime.strptime(g["gap_start"], self.TIME_FMT)
+                ge = datetime.datetime.strptime(g["gap_end"], self.TIME_FMT)
+            except Exception:
+                continue
+            q_start = gs - context
+            q_end = min(ge + context, now)
+            if q_end <= q_start:
+                continue
+            items.append((q_start, q_end, g))
+        items.sort(key=lambda x: x[0])
+        if not items:
+            return []
+
+        clusters: list[dict] = []
+        cur_start, cur_end, first_g = items[0]
+        cur_gaps = [first_g]
+        for q_start, q_end, g in items[1:]:
+            if q_start <= cur_end:
+                if q_end > cur_end:
+                    cur_end = q_end
+                cur_gaps.append(g)
+            else:
+                clusters.append({
+                    "query_start": cur_start.strftime(self.TIME_FMT),
+                    "query_end": cur_end.strftime(self.TIME_FMT),
+                    "gaps": cur_gaps,
+                })
+                cur_start, cur_end, cur_gaps = q_start, q_end, [g]
+        clusters.append({
+            "query_start": cur_start.strftime(self.TIME_FMT),
+            "query_end": cur_end.strftime(self.TIME_FMT),
+            "gaps": cur_gaps,
+        })
+        return clusters
+
+    def _count_tracks_in_window(
+        self,
+        tracks: list,
+        window_start: datetime.datetime,
+        window_end: datetime.datetime,
+    ) -> int:
+        """Считает кол-во треков, попадающих в [window_start, window_end] (inclusive)."""
+        n = 0
+        for t in tracks or []:
+            gt = t.get("gt") if isinstance(t, dict) else None
+            if not gt:
+                continue
+            try:
+                t_dt = datetime.datetime.strptime(gt, self.TIME_FMT)
+            except Exception:
+                continue
+            if window_start <= t_dt <= window_end:
+                n += 1
+        return n
+
+    def _build_fallback_interests_for_gap(
+        self,
+        *,
+        reg_id: str,
+        reg_cfg: dict,
+        gap: dict,
+        prepared_alarms: dict | list | None,
+    ) -> list[dict]:
+        """
+        Этап 2.5: собирает fallback-интересы из алармов, попавших в abandoned
+        gap, когда нормально дождаться треков не получилось.
+
+        Правила:
+          * включено только если `GAP_ALARM_FALLBACK_ENABLED`;
+          * берём алармы из `prepared_alarms["alarms"]`, у которых
+            `start_str` внутри [gap.gap_start, gap.gap_end];
+          * фильтр по скорости: `ssp` (десятые) >= GAP_ALARM_FALLBACK_MAX_SPEED_TENTH -> skip;
+            дополнительно `start_stopped == True`;
+          * фильтр по cargo_type: 'unknown' -> skip;
+          * фильтр по ignore_points (депо/МПЗ) по координатам аларма;
+          * окно каждого аларма: [start - BEFORE_SEC, end + AFTER_SEC], либо
+            при отсутствии end -> [start - BEFORE_SEC, start + NOEND_AFTER_SEC];
+          * близкие окна (расстояние <= MERGE_GAP_SEC) объединяются в один
+            fallback-интерес.
+
+        Возвращает список готовых dict'ов интересов (в формате, совместимом с
+        `append_pending_interests`); список может быть пустым.
+        """
+        cfg = settings.config
+        if not cfg.getboolean("Interests", "GAP_ALARM_FALLBACK_ENABLED", fallback=True):
+            return []
+
+        before_sec = cfg.getint("Interests", "GAP_ALARM_FALLBACK_BEFORE_SEC", fallback=120)
+        after_sec = cfg.getint("Interests", "GAP_ALARM_FALLBACK_AFTER_SEC", fallback=120)
+        noend_after_sec = cfg.getint("Interests", "GAP_ALARM_FALLBACK_NOEND_AFTER_SEC", fallback=300)
+        merge_gap_sec = cfg.getint("Interests", "GAP_ALARM_FALLBACK_MERGE_GAP_SEC", fallback=30)
+        max_speed_tenth = cfg.getint("Interests", "GAP_ALARM_FALLBACK_MAX_SPEED_TENTH", fallback=3)
+        ignore_tol = cfg.getint("Interests", "IGNORE_POINTS_TOLERANCE", fallback=0)
+        photo_after_shift_sec = cfg.getint("Interests", "PHOTO_AFTER_SHIFT_SEC", fallback=13)
+
+        if isinstance(prepared_alarms, dict):
+            alarms_list = prepared_alarms.get("alarms") or []
+        elif isinstance(prepared_alarms, list):
+            alarms_list = prepared_alarms
+        else:
+            alarms_list = []
+        if not alarms_list:
+            return []
+
+        try:
+            gap_s_dt = datetime.datetime.strptime(gap["gap_start"], self.TIME_FMT)
+            gap_e_dt = datetime.datetime.strptime(gap["gap_end"], self.TIME_FMT)
+        except Exception:
+            return []
+
+        try:
+            from interests_fetcher import geo_funcs
+            ignore_points = geo_funcs.get_ignore_points()
+        except Exception:
+            ignore_points = []
+
+        def _ignored_geo(geo_str: str | None) -> str | None:
+            if not geo_str or not ignore_points or ignore_tol <= 0:
+                return None
+            try:
+                from interests_fetcher import geo_funcs
+                return geo_funcs.find_nearby_name(geo_str, ignore_points, ignore_tol)
+            except Exception:
+                return None
+
+        plate = (reg_cfg or {}).get("plate") or reg_id
+
+        candidates: list[dict] = []
+        for a in alarms_list:
+            if not isinstance(a, dict):
+                continue
+            try:
+                a_start_dt = a.get("start_dt") or datetime.datetime.strptime(a.get("start_str", ""), self.TIME_FMT)
+                a_end_dt = a.get("end_dt")
+                if not a_end_dt and a.get("end_str"):
+                    a_end_dt = datetime.datetime.strptime(a["end_str"], self.TIME_FMT)
+            except Exception:
+                continue
+            if a_start_dt < gap_s_dt or a_start_dt > gap_e_dt:
+                continue
+
+            cargo = a.get("cargo_type")
+            if not cargo or cargo == "unknown":
+                continue
+
+            ssp_kmh = a.get("ssp_kmh")
+            if ssp_kmh is None:
+                ssp_kmh = (a.get("ssp") or 0) / 10.0
+            if ssp_kmh * 10.0 >= max_speed_tenth:
+                continue
+            if a.get("start_stopped") is False:
+                continue
+
+            slng = a.get("slng")
+            slat = a.get("slat")
+            geo_str = None
+            if slng is not None and slat is not None:
+                geo_str = f"{slng},{slat}"
+            zone = _ignored_geo(geo_str)
+            if zone:
+                logger.info(
+                    f"{reg_id}: [FALLBACK] аларм {a.get('start_str')} в зоне игнора '{zone}' — skip"
+                )
+                continue
+
+            if a_end_dt and a_end_dt > a_start_dt:
+                w_start = a_start_dt - datetime.timedelta(seconds=before_sec)
+                w_end = a_end_dt + datetime.timedelta(seconds=after_sec)
+            else:
+                w_start = a_start_dt - datetime.timedelta(seconds=before_sec)
+                w_end = a_start_dt + datetime.timedelta(seconds=noend_after_sec)
+
+            candidates.append({
+                "w_start": w_start,
+                "w_end": w_end,
+                "alarm": a,
+                "cargo": cargo,
+                "geo": geo_str,
+            })
+
+        if not candidates:
+            return []
+
+        candidates.sort(key=lambda c: c["w_start"])
+        clusters: list[dict] = []
+        for c in candidates:
+            if not clusters:
+                clusters.append({
+                    "w_start": c["w_start"],
+                    "w_end": c["w_end"],
+                    "alarms": [c["alarm"]],
+                    "cargos": {c["cargo"]},
+                    "geo": c["geo"],
+                })
+                continue
+            last = clusters[-1]
+            if (c["w_start"] - last["w_end"]).total_seconds() <= merge_gap_sec:
+                if c["w_end"] > last["w_end"]:
+                    last["w_end"] = c["w_end"]
+                last["alarms"].append(c["alarm"])
+                last["cargos"].add(c["cargo"])
+                if not last["geo"] and c["geo"]:
+                    last["geo"] = c["geo"]
+            else:
+                clusters.append({
+                    "w_start": c["w_start"],
+                    "w_end": c["w_end"],
+                    "alarms": [c["alarm"]],
+                    "cargos": {c["cargo"]},
+                    "geo": c["geo"],
+                })
+
+        def _cargo_to_human(cargos: set[str]) -> str:
+            if "kgo" in cargos and "euro" not in cargos:
+                return "Бункер"
+            if "euro" in cargos and "kgo" not in cargos:
+                return "Контейнер"
+            return "Контейнер"
+
+        fallback_interests: list[dict] = []
+        gap_id = gap.get("id")
+        for cl in clusters:
+            s_dt: datetime.datetime = cl["w_start"]
+            e_dt: datetime.datetime = cl["w_end"]
+            s_str = s_dt.strftime(self.TIME_FMT)
+            e_str = e_dt.strftime(self.TIME_FMT)
+            photo_before = s_str
+            photo_after_dt = e_dt - datetime.timedelta(seconds=photo_after_shift_sec)
+            if photo_after_dt < s_dt:
+                photo_after_dt = s_dt
+            photo_after = photo_after_dt.strftime(self.TIME_FMT)
+
+            cargo_human = _cargo_to_human(cl["cargos"])
+
+            switch_events = []
+            for a in cl["alarms"]:
+                switch_events.append({
+                    "datetime": a.get("start_str"),
+                    "switch": a.get("io_index"),
+                    "source": "alarm-abandoned-gap",
+                })
+
+            def _secs(d: datetime.datetime) -> int:
+                return d.hour * 3600 + d.minute * 60 + d.second
+
+            interest = {
+                "name": (
+                    f"{plate}_"
+                    f"{s_dt.year}.{s_dt.month:02d}.{s_dt.day:02d} "
+                    f"{s_dt.hour:02d}.{s_dt.minute:02d}.{s_dt.second:02d}-"
+                    f"{e_dt.hour:02d}.{e_dt.minute:02d}.{e_dt.second:02d}"
+                ),
+                "reg_id": reg_id,
+                "beg_sec": _secs(s_dt),
+                "end_sec": _secs(e_dt),
+                "year": s_dt.year,
+                "month": s_dt.month,
+                "day": s_dt.day,
+                "start_time": s_str,
+                "end_time": e_str,
+                "car_number": plate,
+                "photo_before_timestamp": photo_before,
+                "photo_after_timestamp": photo_after,
+                "photo_before_sec": _secs(s_dt),
+                "photo_after_sec": _secs(photo_after_dt),
+                "report": {
+                    "cargo_type": cargo_human,
+                    "geo": cl["geo"],
+                    "switches_amount": len(cl["alarms"]),
+                    "switch_events": switch_events,
+                },
+                "source": "abandoned_gap_alarm_fallback",
+                "from_abandoned_gap": True,
+                "fallback_gap_id": gap_id,
+            }
+            fallback_interests.append(interest)
+
+        return fallback_interests
+
+    async def _attempt_alarm_fallback_before_abandon(
+        self,
+        *,
+        reg_id: str,
+        reg_cfg: dict,
+        gap: dict,
+        prepared_alarms: dict | list | None,
+        tracks: list | None,
+        reason: str,
+    ) -> bool:
+        """
+        Перед переводом gap'а в `abandoned` — собираем fallback-интересы из
+        алармов (см. `_build_fallback_interests_for_gap`) и кладём их в
+        pending_interests. Мердж с уже существующими интересами произойдёт
+        автоматически через последующий `merge_overlapping_interests` в
+        forward-проходе.
+
+        Если `prepared_alarms` отсутствует (max_age-путь) — подтягиваем их
+        свежим запросом через `get_interests_async(return_raw=True)` на
+        небольшом окне вокруг gap'а.
+
+        Возвращает True, если хотя бы один fallback-интерес добавлен.
+        """
+        if not gap:
+            return False
+
+        if prepared_alarms is None:
+            try:
+                gap_s_dt = datetime.datetime.strptime(gap["gap_start"], self.TIME_FMT)
+                gap_e_dt = datetime.datetime.strptime(gap["gap_end"], self.TIME_FMT)
+            except Exception:
+                logger.warning(f"{reg_id}: fallback: плохие границы gap'а {gap.get('id')}")
+                return False
+            context_min = settings.config.getint(
+                "Interests", "GAP_RECHECK_CONTEXT_MIN", fallback=30
+            )
+            q_start_dt = gap_s_dt - datetime.timedelta(minutes=context_min)
+            q_end_dt = gap_e_dt + datetime.timedelta(minutes=context_min)
+            now = datetime.datetime.now()
+            if q_end_dt > now:
+                q_end_dt = now
+            q_start = q_start_dt.strftime(self.TIME_FMT)
+            q_end = q_end_dt.strftime(self.TIME_FMT)
+            try:
+                raw = await self.get_interests_async(
+                    reg_id, reg_cfg, q_start, q_end, return_raw=True
+                )
+            except Exception:
+                logger.exception(
+                    f"{reg_id}: fallback: get_interests_async failed for gap {gap.get('id')}"
+                )
+                return False
+            if not raw:
+                return False
+            _interests, tracks, prepared_alarms = raw
+
+        candidates = self._build_fallback_interests_for_gap(
+            reg_id=reg_id,
+            reg_cfg=reg_cfg,
+            gap=gap,
+            prepared_alarms=prepared_alarms,
+        )
+        if not candidates:
+            logger.info(
+                f"{reg_id}: fallback({reason}): gap {gap.get('id')} "
+                f"[{gap.get('gap_start')} → {gap.get('gap_end')}] — подходящих "
+                f"алармов не найдено, просто abandoned."
+            )
+            return False
+
+        try:
+            main_funcs.append_pending_interests(reg_id, candidates)
+        except Exception:
+            logger.exception(
+                f"{reg_id}: fallback({reason}): append_pending_interests failed"
+            )
+            return False
+
+        logger.info(
+            f"{reg_id}: fallback({reason}): gap {gap.get('id')} -> добавлено "
+            f"{len(candidates)} fallback-интерес(ов) из алармов: "
+            f"{[it['name'] for it in candidates]}"
+        )
+        return True
+
+    async def _process_gaps_if_due(self, reg_id: str) -> None:
+        """
+        Gap-проход: перебирает pending gap'ы регистратора и:
+
+          1. Если gap старше GAP_MAX_AGE_HOURS -> пытается alarm-fallback
+             (Этап 2.5, сейчас no-op) и абандонит. Запрос треков НЕ делается.
+          2. Для остальных due-gap'ов (last_checked is None или прошло
+             GAP_RECHECK_INTERVAL_HOURS) строит кластеры (см.
+             `_cluster_gaps_for_recheck`) и для каждого:
+               - делает `get_interests_async(return_raw=True)` на query-окне;
+               - прогоняет найденные интересы через `_sync_recheck_with_cloud`;
+               - вызывает `reconcile_gaps_in_window` для сверки старых
+                 pending gap'ов в окне с новым результатом детектора
+                 (CLOSED / SHRUNK / SPLIT / NEW + NO_PROGRESS).
+          3. Для gap'ов, у которых `no_progress_streak` достиг порога —
+             пробует alarm-fallback и переводит в abandoned.
+
+        В конце — пересчитывает gap<->interest связи через `_recompute_gap_links`.
+        """
+        now = datetime.datetime.now()
+        recheck_interval_h = settings.config.getint(
+            "Interests", "GAP_RECHECK_INTERVAL_HOURS", fallback=4
+        )
+        max_age_h = settings.config.getint(
+            "Interests", "GAP_MAX_AGE_HOURS", fallback=72
+        )
+        context_min = settings.config.getint(
+            "Interests", "GAP_RECHECK_CONTEXT_MIN", fallback=30
+        )
+        stable_checks = settings.config.getint(
+            "Interests", "GAP_STABLE_NO_PROGRESS_CHECKS", fallback=3
+        )
+
+        gaps = main_funcs.get_gaps(reg_id)
+        pending = [g for g in gaps if isinstance(g, dict) and g.get("status") == "pending"]
+        if not pending:
+            return
+
+        to_abandon_max_age: list[dict] = []
+        due_list: list[dict] = []
+        for g in pending:
+            created_at = g.get("created_at")
+            max_aged = False
+            if created_at:
+                try:
+                    ca_dt = datetime.datetime.strptime(created_at, self.TIME_FMT)
+                    if (now - ca_dt).total_seconds() >= max_age_h * 3600:
+                        to_abandon_max_age.append(g)
+                        max_aged = True
+                except Exception:
+                    pass
+            if max_aged:
+                continue
+
+            last_checked = g.get("last_checked")
+            if not last_checked:
+                due_list.append(g)
+                continue
+            try:
+                lc_dt = datetime.datetime.strptime(last_checked, self.TIME_FMT)
+                if (now - lc_dt).total_seconds() >= recheck_interval_h * 3600:
+                    due_list.append(g)
+            except Exception:
+                due_list.append(g)
+
+        reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
+
+        for g in to_abandon_max_age:
+            logger.info(
+                f"{reg_id}: gap id={g.get('id')} [{g.get('gap_start')} → {g.get('gap_end')}] "
+                f"MAX_AGE (>{max_age_h}h) -> attempt fallback & abandon"
+            )
+            try:
+                await self._attempt_alarm_fallback_before_abandon(
+                    reg_id=reg_id,
+                    reg_cfg=reg_cfg,
+                    gap=g,
+                    prepared_alarms=None,
+                    tracks=None,
+                    reason="max_age",
+                )
+            except Exception:
+                logger.exception(f"{reg_id}: alarm-fallback(max_age) failed for gap {g.get('id')}")
+            main_funcs.close_gap(reg_id, g.get("id"), abandoned=True)
+
+        if not due_list:
+            self._recompute_gap_links(reg_id)
+            return
+
+        clusters = self._cluster_gaps_for_recheck(due_list, context_min, now)
+
+        for cluster in clusters:
+            q_start = cluster["query_start"]
+            q_end = cluster["query_end"]
+            cluster_gaps = cluster["gaps"]
+
+            logger.info(
+                f"{reg_id}: GAP RECHECK cluster [{q_start} → {q_end}], "
+                f"gaps_in_cluster={len(cluster_gaps)}"
+            )
+
+            try:
+                raw = await self.get_interests_async(
+                    reg_id, reg_cfg, q_start, q_end, return_raw=True
+                )
+            except Exception:
+                logger.exception(f"{reg_id}: GAP RECHECK get_interests_async failed")
+                continue
+
+            if not raw:
+                continue
+            new_interests, tracks, prepared_alarms = raw
+
+            if new_interests:
+                self._log_interests_shape(reg_id, "GAP_RECHECK_BEFORE_MERGE", new_interests)
+                merged = self._merge_interests_safe(reg_id, "GAP_RECHECK_BEFORE_MERGE", new_interests)
+                if merged:
+                    try:
+                        await self._sync_recheck_with_cloud(
+                            reg_id=reg_id,
+                            recheck_interests=merged,
+                            st=q_start,
+                            en=q_end,
+                            time_fmt=self.TIME_FMT,
+                        )
+                    except Exception:
+                        logger.exception(f"{reg_id}: GAP RECHECK _sync_recheck_with_cloud failed")
+
+            if tracks is None:
+                logger.warning(
+                    f"{reg_id}: GAP RECHECK cluster [{q_start} → {q_end}] -> "
+                    f"tracks=None (LoadingInProgress или ошибка) — reconcile пропускаем."
+                )
+                continue
+
+            try:
+                detected = cms_api_funcs.detect_gaps(
+                    tracks=tracks,
+                    window_start=q_start,
+                    window_end=q_end,
+                    reg_id=reg_id,
+                )
+            except Exception:
+                logger.exception(f"{reg_id}: GAP RECHECK detect_gaps failed")
+                detected = []
+
+            points_per_gap: dict[str, int] = {}
+            context_td = datetime.timedelta(minutes=context_min)
+            for g in cluster_gaps:
+                try:
+                    gs_dt = datetime.datetime.strptime(g["gap_start"], self.TIME_FMT)
+                    ge_dt = datetime.datetime.strptime(g["gap_end"], self.TIME_FMT)
+                except Exception:
+                    continue
+                q_gs = gs_dt - context_td
+                q_ge = min(ge_dt + context_td, now)
+                gid = g.get("id")
+                if gid:
+                    points_per_gap[gid] = self._count_tracks_in_window(tracks, q_gs, q_ge)
+
+            recon = main_funcs.reconcile_gaps_in_window(
+                reg_id=reg_id,
+                detected_gaps=detected,
+                window_start=q_start,
+                window_end=q_end,
+                points_per_gap=points_per_gap,
+                stable_checks_threshold=stable_checks,
+            )
+
+            for gid in recon.get("no_progress", []):
+                target = None
+                for g in main_funcs.get_gaps(reg_id):
+                    if isinstance(g, dict) and g.get("id") == gid:
+                        target = g
+                        break
+                if target is None or target.get("status") != "pending":
+                    continue
+                logger.info(
+                    f"{reg_id}: gap id={gid} NO_PROGRESS (streak>={stable_checks}) -> "
+                    f"attempt fallback & abandon"
+                )
+                try:
+                    await self._attempt_alarm_fallback_before_abandon(
+                        reg_id=reg_id,
+                        reg_cfg=reg_cfg,
+                        gap=target,
+                        prepared_alarms=prepared_alarms,
+                        tracks=tracks,
+                        reason="no_progress",
+                    )
+                except Exception:
+                    logger.exception(f"{reg_id}: alarm-fallback(no_progress) failed for gap {gid}")
+                main_funcs.close_gap(reg_id, gid, abandoned=True)
+
+        self._recompute_gap_links(reg_id)
+
     async def _sync_recheck_with_cloud(
         self,
         reg_id: str,
@@ -269,13 +967,29 @@ class Main:
             if reg_id in self.devices_in_progress:
                 self.devices_in_progress.remove(reg_id)
 
-    async def get_interests_async(self, reg_id, reg_info, start_time, stop_time):
+    async def get_interests_async(
+        self,
+        reg_id,
+        reg_info,
+        start_time,
+        stop_time,
+        *,
+        return_raw: bool = False,
+    ):
         """
         Асинхронная версия получения интересов:
         - CMS треки (queryTrackDetail) — в thread-пуле через asyncio.to_thread
         - CMS alarm detail — в thread-пуле через asyncio.to_thread
         - Подготовка алармов/сшивка — синхронно (CPU), можно оставить в основном потоке
         Логика «шага назад по минуте» (max_extra_pulls) сохранена.
+
+        По умолчанию возвращает список интересов (`list[dict]`) и делает
+        forward-`_detect_and_upsert_gaps` по окну запроса.
+
+        При `return_raw=True`:
+          - возвращает кортеж `(interests, tracks, prepared_alarms)`
+          - gap detection НЕ выполняется (вызывающий отвечает за reconcile).
+          - В случае ошибки/пустого результата возвращает `([], None, None)`.
         """
         max_extra_pulls = 8  # максимум шагов назад по минуте
         pulls = 0
@@ -295,8 +1009,7 @@ class Main:
                 start_time=query_start_time,
                 end_time=stop_time,
             )
-            #for alarm in all_alarms:
-            #    print(alarm)
+            print(f"tracks: {tracks}")
 
             prepared = cms_api_funcs.prepare_alarms(
                 raw_alarms=all_alarms,
@@ -316,70 +1029,40 @@ class Main:
                 )
             except cms_api_funcs.LoadingInProgress:
                 logger.info("Прерываем обработку интересов потому что машина грузится в это время ")
+                if return_raw:
+                    return [], None, None
                 return {"error": "Loading in progress"}
 
             if isinstance(interests, dict) and "interests" in interests:
                 found_interests = interests["interests"]
-                
-                # Fallback: если интересов не найдено, но есть алармы, попробуем создать интересы напрямую из алармов
-                if not found_interests and prepared and isinstance(prepared, dict) and "alarms" in prepared:
-                    logger.info(f"{reg_id}: [FALLBACK] Интересы не найдены основным методом, пробуем поиск напрямую по алармам")
-                    fallback_interests = []
-                    for alarm in prepared["alarms"]:
-                        # Берем только алармы с известным типом груза и start_stopped=True
-                        if alarm.get("start_stopped") and alarm.get("cargo_type") != "unknown":
-                            start_dt = alarm.get("start_dt")
-                            end_dt = alarm.get("end_dt")
-                            cargo_type = alarm.get("cargo_type")
-                            
-                            if start_dt and end_dt:
-                                # Создаем простой интерес из аларма
-                                time_before = (start_dt - datetime.timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
-                                time_after = (end_dt + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S")
-                                
-                                # Используем последний трек для создания интереса, если есть треки
-                                if tracks:
-                                    last_track = tracks[-1]
-                                    interest = cms_api_funcs.get_interest_from_track(
-                                        last_track,
-                                        start_time=time_before,
-                                        end_time=time_after,
-                                        photo_before_timestamp=time_before,
-                                        photo_after_timestamp=time_after,
-                                        reg_id=reg_id,
-                                    )
-                                    interest["report"] = {
-                                        "cargo_type": "Бункер" if cargo_type == "kgo" else "Контейнер",
-                                        "geo": last_track.get("ps"),
-                                        "switches_amount": 1,
-                                        "switch_events": [{
-                                            "datetime": alarm.get("start_str"),
-                                            "switch": alarm.get("io_index"),
-                                            "source": "alarm-fallback"
-                                        }],
-                                    }
-                                    fallback_interests.append(interest)
-                                    logger.info(f"{reg_id}: [FALLBACK] Создан интерес из аларма {alarm.get('start_str')}: {time_before} → {time_after}")
-                    
-                    if fallback_interests:
-                        logger.info(f"{reg_id}: [FALLBACK] Найдено {len(fallback_interests)} интересов через fallback по алармам")
-                        return fallback_interests
-                
+                if return_raw:
+                    return found_interests, tracks, prepared
+                try:
+                    self._detect_and_upsert_gaps(
+                        reg_id=reg_id,
+                        tracks=tracks,
+                        window_start=start_time,
+                        window_end=stop_time,
+                    )
+                except Exception:
+                    logger.exception(f"{reg_id}: gap detection/upsert failed")
                 return found_interests
 
             elif isinstance(interests, dict) and "error" in interests:
                 pulls += 1
                 if pulls > max_extra_pulls:
                     logger.warning(f"[GUARD] Достигнут предел догрузок (pulls={pulls}). Останавливаемся.")
+                    if return_raw:
+                        return [], None, None
                     return []
-                # двигаемся на минуту назад
                 start_time = (start_time_dt - datetime.timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
                 logger.info(f"Теперь ищем треки с {start_time}")
                 continue
 
             else:
-                # На случай иных форматов ответа
                 logger.warning(f"[ANALYZE] Неожиданный формат из find_interests_by_lifting_switches: {type(interests)}")
+                if return_raw:
+                    return [], None, None
                 return []
 
     def _parse_start_ts(self, it: dict):
@@ -461,13 +1144,38 @@ class Main:
             await self._refill_pending_interests_if_due(reg_id)     # Извлечь новые интересы из CMS
             pending = main_funcs.get_pending_interests(reg_id)
 
+        # --- Этап 3: pessimistic publication ---
+        # Отсекаем интересы, у которых blocking_gap_ids непустой: внутри/рядом
+        # с интересом есть активный (pending) gap, и мы ждём треков. Такие
+        # интересы не уходят ни в merge (чтобы не слиться с разблокированными),
+        # ни в батч выгрузки. Они дождутся reconcile (CLOSED/SHRUNK) или
+        # abandon (Этап 2.5) и разблокируются.
+        if pending:
+            total_pending = len(pending)
+            unblocked: list[dict] = []
+            blocked_names: list[tuple[str, list[str]]] = []
+            for it in pending:
+                if not isinstance(it, dict):
+                    continue
+                bl = it.get("blocking_gap_ids") or []
+                if bl:
+                    blocked_names.append((it.get("name") or "", list(bl)))
+                else:
+                    unblocked.append(it)
+            if blocked_names:
+                logger.info(
+                    f"{reg_id}: pessimistic: пропускаем {len(blocked_names)} из {total_pending} "
+                    f"pending_interests — заблокированы активными gap'ами. "
+                    f"Примеры: {blocked_names[:3]}"
+                )
+            pending = unblocked
+
         if pending:
             interests = pending
             logger.info(f"{reg_id}: Берём {len(interests)} интерес(а/ов) из очереди pending_interests.")
             logger.debug(f"({interests})")
         else:
-            # Если очередь пуста и проверка давности не прошла — делать лишних запросов не будем
-            logger.info(f"{reg_id}: Очередь pending_interests пуста, и наполнять сейчас рано — завершаем.")
+            logger.info(f"{reg_id}: Очередь pending_interests пуста (или всё заблокировано активными gap'ами) — завершаем обход.")
             return True
 
         logger.info(f"{reg_id}: Найдено {len(interests)} интересов")
@@ -887,9 +1595,33 @@ class Main:
         """
         self.jsession = None
 
+    async def _gc_gaps_if_due(self) -> None:
+        """
+        Этап 4: раз в GC_INTERVAL_SEC (по умолчанию 3600с) чистит терминальные
+        gap'ы (closed/abandoned) старше TTL по всем регистраторам.
+        Троттлится через `self._last_gc_gaps_ts`.
+        """
+        gc_interval_sec = 3600
+        now_ts = time.time()
+        last = getattr(self, "_last_gc_gaps_ts", 0.0) or 0.0
+        if (now_ts - last) < gc_interval_sec:
+            return
+        self._last_gc_gaps_ts = now_ts
+        ttl_closed = settings.config.getint("Interests", "GAP_TTL_DAYS_CLOSED", fallback=7)
+        ttl_abnd = settings.config.getint("Interests", "GAP_TTL_DAYS_ABANDONED", fallback=30)
+        try:
+            await asyncio.to_thread(
+                main_funcs.gc_gaps_all,
+                ttl_closed_days=ttl_closed,
+                ttl_abandoned_days=ttl_abnd,
+            )
+        except Exception:
+            logger.exception("[gc_gaps_all] failed")
+
     async def mainloop(self):
         logger.info("Mainloop has been launched with success.")
         self._running: set[asyncio.Task] = set()
+        self._last_gc_gaps_ts = 0.0
         await self.login()
 
         try:
@@ -901,6 +1633,7 @@ class Main:
 
         while True:
             try:
+                await self._gc_gaps_if_due()
                 # важно: get_devices_online в thread, чтобы не блокировать loop
                 devices_online = await self.get_devices_online()
 
@@ -931,23 +1664,14 @@ class Main:
 
     async def _refill_pending_interests_if_due(self, reg_id: str) -> None:
         """
-        Пополняет очередь pending_interests для reg_id двумя способами:
+        Пополняет очередь pending_interests для reg_id forward-проходом:
 
-        1) "Обычный" forward-проход:
            - если сейчас > last_upload_time + 600 сек:
              - догоняем интервал [last_upload_time → now] посуточно,
                обновляя last_upload_time по мере продвижения.
 
-        2) Recheck-проход по "верифицированному" интервалу:
-           - берём verified_until (если его нет — используем last_upload_time),
-           - если прошло >= VERIFIED_RECHECK_HOURS часов,
-             ещё раз проверяем интервал [verified_until → now],
-             СРАВНИВАЕМ с WebDAV и:
-               * новые интересы -> в pending_interests
-               * старые (больше не найденные) -> удаляем с облака.
-
-        Ограничение глубины по дням (MAX_LOOKBACK_DAYS) применяется и к last_upload_time,
-        и к verified_until, чтобы не уходить слишком далеко в прошлое.
+        Ограничение глубины по дням (MAX_LOOKBACK_DAYS) применяется к last_upload_time,
+        чтобы не уходить слишком далеко в прошлое.
         """
         if reg_id in self._interest_refill_in_progress:
             return
@@ -957,57 +1681,20 @@ class Main:
 
             reg_info = main_funcs.get_reg_info(reg_id)
 
-            # --- last_upload_time (как раньше) ---
             last_up_str = reg_info.get("last_upload_time")
             if not last_up_str:
-                # если ничего нет — считаем 7 дней назад
                 last_up_str = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime(TIME_FMT)
             last_up = datetime.datetime.strptime(last_up_str, TIME_FMT)
 
             now = datetime.datetime.now()
 
-            # --- verified_until ---
-            verified_str = reg_info.get("verified_until") or last_up_str
-            try:
-                verified_dt = datetime.datetime.strptime(verified_str, TIME_FMT)
-            except Exception:
-                logger.warning(
-                    f"{reg_id}: Некорректный verified_until='{verified_str}', "
-                    f"сбрасываем к last_upload_time={last_up_str}."
-                )
-                verified_dt = last_up
-
-            verified_long_str = reg_info.get("verified_until_long") or verified_str
-            try:
-                verified_long_dt = datetime.datetime.strptime(verified_long_str, TIME_FMT)
-            except Exception:
-                logger.warning(
-                    f"{reg_id}: Некорректный verified_until_long='{verified_long_str}', "
-                    f"сбрасываем к verified_until={verified_str}."
-                )
-                verified_long_dt = verified_dt
-
-            # --- флаги "пора ли что-то делать" ---
             forward_due = (now - last_up).total_seconds() >= 600
-
-            recheck_hours = settings.config.getint("Interests", "VERIFIED_RECHECK_HOURS", fallback=6)
-            recheck_due = False
-            if recheck_hours > 0:
-                recheck_due = (now - verified_dt).total_seconds() >= recheck_hours * 3600
-
-            recheck_long_hours = settings.config.getint("Interests", "VERIFIED_RECHECK_HOURS_LONG", fallback=24)
-            long_recheck_due = False
-            if recheck_long_hours > 0:
-                long_recheck_due = (now - verified_long_dt).total_seconds() >= recheck_long_hours * 3600
-
-            if not forward_due and not recheck_due and not long_recheck_due:
+            if not forward_due:
                 return
 
-            # --- ограничение глубины по дням ---
             max_lookback_days = settings.config.getint("Interests", "MAX_LOOKBACK_DAYS", fallback=0)
             if max_lookback_days > 0:
                 earliest_allowed = now - datetime.timedelta(days=max_lookback_days)
-
                 if last_up < earliest_allowed:
                     logger.info(
                         f"{reg_id}: last_upload_time={last_up.strftime(TIME_FMT)} старее окна "
@@ -1015,140 +1702,60 @@ class Main:
                     )
                     last_up = earliest_allowed
 
-                if verified_dt < earliest_allowed:
-                    logger.info(
-                        f"{reg_id}: verified_until={verified_dt.strftime(TIME_FMT)} старее окна "
-                        f"{max_lookback_days}d → подрезаем до {earliest_allowed.strftime(TIME_FMT)}."
-                    )
-                    verified_dt = earliest_allowed
-
-                if verified_long_dt < earliest_allowed:
-                    logger.info(
-                        f"{reg_id}: verified_until_long={verified_long_dt.strftime(TIME_FMT)} старее окна "
-                        f"{max_lookback_days}d → подрезаем до {earliest_allowed.strftime(TIME_FMT)}."
-                    )
-                    verified_long_dt = earliest_allowed
-
             collected: list[dict] = []
 
             def day_end(dt: datetime.datetime) -> datetime.datetime:
                 return dt.replace(hour=23, minute=59, second=59)
 
-            def day_start(dt: datetime.datetime) -> datetime.datetime:
-                return dt.replace(hour=0, minute=0, second=0)
+            cur = last_up
+            today = now.date()
 
-            # --- 1) Обычный forward-проход от last_upload_time к now ---
-            if forward_due:
-                cur = last_up
-                today = now.date()
-
-                # догоняем до "вчера включительно" посуточно
-                while cur.date() < today:
-                    st = cur.strftime(TIME_FMT)
-                    en_dt = day_end(cur)
-                    en = en_dt.strftime(TIME_FMT)
-
-                    reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
-                    interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
-                    if interests:
-                        self._log_interests_shape(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
-                        merged = self._merge_interests_safe(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
-                        if merged is None:
-                            return
-                        if merged:
-                            collected.extend(merged)
-                            en = max(interest["end_time"] for interest in merged)
-
-                    main_funcs.save_new_reg_last_upload_time(reg_id, en)
-                    cur = en_dt + datetime.timedelta(seconds=1)
-
-                # остаток "сегодня до текущего момента"
-                if cur <= now:
-                    st = cur.strftime(TIME_FMT)
-                    en = now.strftime(TIME_FMT)
-                    reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
-                    interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
-                    if interests:
-                        self._log_interests_shape(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
-                        merged = self._merge_interests_safe(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
-                        if merged is None:
-                            return
-                        if merged:
-                            collected.extend(merged)
-                            en = max(interest["end_time"] for interest in merged)
-                    main_funcs.save_new_reg_last_upload_time(reg_id, en)
-
-            # --- 2) Recheck-проход от verified_until к now ---
-            if recheck_due:
-                st = verified_dt.strftime(TIME_FMT)
-                en = now.strftime(TIME_FMT)
-
-                logger.info(
-                    f"{reg_id}: RECHECK интервала [{st} → {en}] "
-                    f"после паузы {recheck_hours}ч."
-                )
+            while cur.date() < today:
+                st = cur.strftime(TIME_FMT)
+                en_dt = day_end(cur)
+                en = en_dt.strftime(TIME_FMT)
 
                 reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
-                recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
-                if recheck_interests:
-                    self._log_interests_shape(reg_id, "RECHECK_BEFORE_MERGE", recheck_interests)
-                    merged_recheck = self._merge_interests_safe(reg_id, "RECHECK_BEFORE_MERGE", recheck_interests)
-                    if merged_recheck is None:
+                interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
+                if interests:
+                    self._log_interests_shape(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
+                    merged = self._merge_interests_safe(reg_id, "FORWARD_DAY_BEFORE_MERGE", interests)
+                    if merged is None:
                         return
-                    if merged_recheck:
-                        # ВАЖНО: не добавляем их в collected, а синхронизируем с облаком
-                        await self._sync_recheck_with_cloud(
-                            reg_id=reg_id,
-                            recheck_interests=merged_recheck,
-                            st=st,
-                            en=en,
-                            time_fmt=TIME_FMT,
-                        )
+                    if merged:
+                        collected.extend(merged)
+                        en = max(interest["end_time"] for interest in merged)
 
-                # фиксируем, что этот интервал проверен
-                main_funcs.save_reg_verified_until(reg_id, en)
-                try:
-                    verified_dt = datetime.datetime.strptime(en, TIME_FMT)
-                except Exception:
-                    pass
+                main_funcs.save_new_reg_last_upload_time(reg_id, en)
+                cur = en_dt + datetime.timedelta(seconds=1)
 
-            if long_recheck_due:
-                st_long = verified_long_dt.strftime(TIME_FMT)
-                en_long = verified_dt.strftime(TIME_FMT)
+            if cur <= now:
+                st = cur.strftime(TIME_FMT)
+                en = now.strftime(TIME_FMT)
+                reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
+                interests = await self.get_interests_async(reg_id, reg_cfg, st, en)
+                if interests:
+                    self._log_interests_shape(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
+                    merged = self._merge_interests_safe(reg_id, "FORWARD_TODAY_BEFORE_MERGE", interests)
+                    if merged is None:
+                        return
+                    if merged:
+                        collected.extend(merged)
+                        en = max(interest["end_time"] for interest in merged)
+                main_funcs.save_new_reg_last_upload_time(reg_id, en)
 
-                if st_long != en_long:
-                    logger.info(
-                        f"{reg_id}: DAILY RECHECK интервала [{st_long} → {en_long}] "
-                        f"после паузы {recheck_long_hours}ч."
-                    )
-
-                    reg_cfg = main_funcs.get_reg_info(reg_id) or main_funcs.create_new_reg(reg_id, plate=None)
-                    long_recheck_interests = await self.get_interests_async(reg_id, reg_cfg, st_long, en_long)
-                    if long_recheck_interests:
-                        self._log_interests_shape(reg_id, "LONG_RECHECK_BEFORE_MERGE", long_recheck_interests)
-                        merged_long = self._merge_interests_safe(
-                            reg_id, "LONG_RECHECK_BEFORE_MERGE", long_recheck_interests
-                        )
-                        if merged_long is None:
-                            return
-                        if merged_long:
-                            await self._sync_recheck_with_cloud(
-                                reg_id=reg_id,
-                                recheck_interests=merged_long,
-                                st=st_long,
-                                en=en_long,
-                                time_fmt=TIME_FMT,
-                            )
-
-                    main_funcs.save_reg_verified_until_long(reg_id, en_long)
-                    try:
-                        verified_long_dt = datetime.datetime.strptime(en_long, TIME_FMT)
-                    except Exception:
-                        pass
-
-            # --- forward-результат пишем в pending_interests (с дедупом по имени) ---
             if collected:
                 main_funcs.append_pending_interests(reg_id, collected)
+
+            try:
+                self._recompute_gap_links(reg_id)
+            except Exception:
+                logger.exception(f"{reg_id}: _recompute_gap_links failed")
+
+            try:
+                await self._process_gaps_if_due(reg_id)
+            except Exception:
+                logger.exception(f"{reg_id}: _process_gaps_if_due failed")
 
         finally:
             self._interest_refill_in_progress.discard(reg_id)

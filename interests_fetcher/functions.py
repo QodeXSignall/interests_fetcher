@@ -276,83 +276,6 @@ def create_new_reg(reg_id, plate):
         return flatten_truck_for_pipeline(states["trucks"][tid])
 
 
-def save_reg_verified_until(reg_id: str, timestamp: str):
-    """
-    Обновляет поле verified_until у регистратора.
-    Логика похожа на last_upload_time:
-      - парсим timestamp;
-      - не даём откатываться назад.
-    """
-    try:
-        new_dt = datetime.datetime.strptime(timestamp, settings.TIME_FMT)
-    except Exception:
-        logger.warning(f"{reg_id}. Некорректный формат verified_until: {timestamp} — игнор.")
-        return
-
-    with FileLock(LOCK_PATH):
-        states = _load_states()
-        ensure_truck_row_for_mdvr(states, reg_id)
-        ensure_alarms_structure_inplace(states, reg_id)
-        tid = find_truck_id_by_mdvr(states, reg_id)
-        reg = states["trucks"][tid]
-
-        cur_str = reg.get("verified_until")
-        cur_dt = None
-        if cur_str:
-            try:
-                cur_dt = datetime.datetime.strptime(cur_str, settings.TIME_FMT)
-            except Exception:
-                pass
-
-        # Разрешаем только вперёд (или на то же самое время)
-        if cur_dt is None or new_dt >= cur_dt:
-            reg["verified_until"] = timestamp
-            _atomic_save_states(states)
-            logger.info(f"{reg_id}. Обновлен `verified_until`: {timestamp}")
-        else:
-            logger.debug(
-                f"{reg_id}. Пропуск обновления verified_until "
-                f"(новое {timestamp} < текущее {cur_str})."
-            )
-
-
-def save_reg_verified_until_long(reg_id: str, timestamp: str):
-    """
-    Независимый маркер длинного recheck. Позволяем ему идти вперёд независимо от
-    verified_until, чтобы окна короткой/длинной проверок не блокировали друг друга.
-    """
-    try:
-        new_dt = datetime.datetime.strptime(timestamp, settings.TIME_FMT)
-    except Exception:
-        logger.warning(f"{reg_id}. Некорректный формат verified_until_long: {timestamp} — игнор.")
-        return
-
-    with FileLock(LOCK_PATH):
-        states = _load_states()
-        ensure_truck_row_for_mdvr(states, reg_id)
-        ensure_alarms_structure_inplace(states, reg_id)
-        tid = find_truck_id_by_mdvr(states, reg_id)
-        reg = states["trucks"][tid]
-
-        cur_str = reg.get("verified_until_long")
-        cur_dt = None
-        if cur_str:
-            try:
-                cur_dt = datetime.datetime.strptime(cur_str, settings.TIME_FMT)
-            except Exception:
-                pass
-
-        if cur_dt is None or new_dt >= cur_dt:
-            reg["verified_until_long"] = timestamp
-            _atomic_save_states(states)
-            logger.info(f"{reg_id}. Обновлен `verified_until_long`: {timestamp}")
-        else:
-            logger.debug(
-                f"{reg_id}. Пропуск обновления verified_until_long "
-                f"(новое {timestamp} < текущее {cur_str})."
-            )
-
-
 def save_new_reg_last_upload_time(reg_id: str, timestamp: str):
     try:
         new_dt = datetime.datetime.strptime(timestamp, settings.TIME_FMT)
@@ -661,13 +584,16 @@ def append_pending_interests(reg_id: str, interests: list[dict]) -> None:
         tid = find_truck_id_by_mdvr(states, reg_id)
         reg = states["trucks"][tid]
         cur = reg.get("pending_interests", [])
-        # дедуп по имени интереса
         seen = {it.get("name") for it in cur if isinstance(it, dict)}
         for it in interests:
             nm = (it or {}).get("name")
-            if nm and nm not in seen:
-                cur.append(it)
-                seen.add(nm)
+            if not nm or nm in seen:
+                continue
+            # по умолчанию — интерес ничем не заблокирован
+            if "blocking_gap_ids" not in it or not isinstance(it.get("blocking_gap_ids"), list):
+                it["blocking_gap_ids"] = []
+            cur.append(it)
+            seen.add(nm)
         reg["pending_interests"] = cur
         _atomic_save_states(states)
 
@@ -682,6 +608,584 @@ def remove_pending_interest(reg_id: str, interest_name: str) -> None:
         reg["pending_interests"] = [it for it in cur if it.get("name") != interest_name]
         _atomic_save_states(states)
 
+
+# ---------------------------------------------------------------------------
+# Gaps: детерминированная очередь "дыр в треках" для регистратора.
+# Живут в states.trucks[tid].gaps: list[dict]. Формат записи:
+#   {
+#     "id":                   "<uuid4>",
+#     "gap_start":            "YYYY-MM-DD HH:MM:SS",
+#     "gap_end":              "YYYY-MM-DD HH:MM:SS",
+#     "created_at":           "YYYY-MM-DD HH:MM:SS",
+#     "last_checked":         "YYYY-MM-DD HH:MM:SS" | None,
+#     "checked":              int,
+#     "points_last_seen":     int,
+#     "status":               "pending" | "closed" | "abandoned",
+#     "closed_at":            "YYYY-MM-DD HH:MM:SS" | None,
+#     "linked_interest_names": list[str],
+#   }
+# ---------------------------------------------------------------------------
+
+def _new_gap_record(gap_start: str, gap_end: str, *, created_at: Optional[str] = None,
+                    linked_interest_names: Optional[List[str]] = None) -> dict:
+    now_str = created_at or datetime.datetime.now().strftime(settings.TIME_FMT)
+    return {
+        "id": str(uuid.uuid4()),
+        "gap_start": gap_start,
+        "gap_end": gap_end,
+        "created_at": now_str,
+        "last_checked": None,
+        "checked": 0,
+        "points_last_seen": 0,
+        "no_progress_streak": 0,
+        "status": "pending",
+        "closed_at": None,
+        "linked_interest_names": list(linked_interest_names or []),
+    }
+
+
+def _gaps_overlap(a_start: str, a_end: str, b_start: str, b_end: str) -> bool:
+    try:
+        a_s = datetime.datetime.strptime(a_start, settings.TIME_FMT)
+        a_e = datetime.datetime.strptime(a_end, settings.TIME_FMT)
+        b_s = datetime.datetime.strptime(b_start, settings.TIME_FMT)
+        b_e = datetime.datetime.strptime(b_end, settings.TIME_FMT)
+    except Exception:
+        return False
+    return a_s <= b_e and b_s <= a_e
+
+
+def get_gaps(reg_id: str) -> list[dict]:
+    """Возвращает копию списка gap'ов регистратора (может быть пустым)."""
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            logger.warning(f"{reg_id}: get_gaps -> регистратор не найден в states.json")
+            return []
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        return list(reg.get("gaps", []) or [])
+
+
+def upsert_gap(
+    reg_id: str,
+    gap_start: str,
+    gap_end: str,
+    *,
+    linked_interest_names: Optional[List[str]] = None,
+) -> Optional[str]:
+    """
+    Сохраняет/обновляет gap для регистратора.
+
+    Правила:
+      * если среди существующих `pending` gap'ов есть пересекающиеся с новым
+        [gap_start, gap_end] — сливаем границы (min/max), сохраняем самый ранний
+        `id`/`created_at`, остальные pending-дубликаты удаляем;
+      * если пересечений нет — создаём новую запись со status="pending";
+      * `closed`/`abandoned` gap'ы игнорируются при мердже (не поднимаем).
+
+    Если передан `linked_interest_names` — он объединяется с уже сохранёнными
+    через set-объединение (порядок стабилен).
+
+    Возвращает `id` итоговой записи, либо None, если не удалось записать.
+    """
+    try:
+        datetime.datetime.strptime(gap_start, settings.TIME_FMT)
+        datetime.datetime.strptime(gap_end, settings.TIME_FMT)
+    except Exception:
+        logger.warning(f"{reg_id}: upsert_gap: некорректные границы [{gap_start} → {gap_end}]")
+        return None
+
+    if gap_start >= gap_end:
+        logger.warning(f"{reg_id}: upsert_gap: пустой/инвертированный интервал [{gap_start} → {gap_end}]")
+        return None
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        ensure_truck_row_for_mdvr(states, reg_id)
+        ensure_alarms_structure_inplace(states, reg_id)
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        reg = states["trucks"][tid]
+        gaps: list[dict] = reg.setdefault("gaps", [])
+
+        new_linked = list(linked_interest_names or [])
+
+        # ищем все pending, пересекающиеся с новым интервалом
+        overlapping_idx: list[int] = []
+        for i, g in enumerate(gaps):
+            if not isinstance(g, dict):
+                continue
+            if g.get("status") != "pending":
+                continue
+            if _gaps_overlap(gap_start, gap_end, g.get("gap_start", ""), g.get("gap_end", "")):
+                overlapping_idx.append(i)
+
+        if not overlapping_idx:
+            record = _new_gap_record(gap_start, gap_end, linked_interest_names=new_linked)
+            gaps.append(record)
+            _atomic_save_states(states)
+            logger.info(
+                f"{reg_id}: gap created id={record['id']} "
+                f"[{record['gap_start']} → {record['gap_end']}]"
+            )
+            return record["id"]
+
+        # сливаем: выбираем "главную" запись — с самой ранней датой created_at
+        main_i = min(
+            overlapping_idx,
+            key=lambda i: gaps[i].get("created_at") or "9999-12-31 23:59:59",
+        )
+        main = gaps[main_i]
+
+        min_start = min([gap_start] + [gaps[i].get("gap_start", gap_start) for i in overlapping_idx])
+        max_end = max([gap_end] + [gaps[i].get("gap_end", gap_end) for i in overlapping_idx])
+
+        merged_linked: list[str] = []
+        seen_linked: set[str] = set()
+        for i in overlapping_idx:
+            for nm in gaps[i].get("linked_interest_names") or []:
+                if nm and nm not in seen_linked:
+                    merged_linked.append(nm)
+                    seen_linked.add(nm)
+        for nm in new_linked:
+            if nm and nm not in seen_linked:
+                merged_linked.append(nm)
+                seen_linked.add(nm)
+
+        main["gap_start"] = min_start
+        main["gap_end"] = max_end
+        main["linked_interest_names"] = merged_linked
+
+        # удалить прочие pending-дубликаты (идём с конца, чтобы индексы не поехали)
+        for i in sorted(overlapping_idx, reverse=True):
+            if i != main_i:
+                del gaps[i]
+
+        _atomic_save_states(states)
+        logger.info(
+            f"{reg_id}: gap merged id={main['id']} "
+            f"[{main['gap_start']} → {main['gap_end']}] "
+            f"(merged={len(overlapping_idx)})"
+        )
+        return main["id"]
+
+
+def update_gap(reg_id: str, gap_id: str, **fields) -> bool:
+    """Точечное обновление полей конкретного gap'а. Возвращает True если запись найдена."""
+    if not fields:
+        return False
+    allowed = {
+        "gap_start", "gap_end",
+        "last_checked", "checked",
+        "points_last_seen",
+        "no_progress_streak",
+        "status", "closed_at",
+        "linked_interest_names",
+    }
+    bad = set(fields.keys()) - allowed
+    if bad:
+        logger.warning(f"{reg_id}: update_gap: запрещённые поля {bad}")
+        return False
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return False
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        gaps: list[dict] = reg.get("gaps") or []
+        for g in gaps:
+            if isinstance(g, dict) and g.get("id") == gap_id:
+                g.update(fields)
+                _atomic_save_states(states)
+                return True
+        return False
+
+
+def remove_gap(reg_id: str, gap_id: str) -> bool:
+    """Физически удаляет gap из списка. Возвращает True, если запись была."""
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return False
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        gaps: list[dict] = reg.get("gaps") or []
+        before = len(gaps)
+        reg["gaps"] = [g for g in gaps if not (isinstance(g, dict) and g.get("id") == gap_id)]
+        changed = len(reg["gaps"]) != before
+        if changed:
+            _atomic_save_states(states)
+        return changed
+
+
+def close_gap(reg_id: str, gap_id: str, *, abandoned: bool = False) -> bool:
+    """
+    Переводит gap в terminal status ("closed" или "abandoned"), проставляет
+    closed_at=now и снимает gap_id из blocking_gap_ids всех pending_interests
+    этого регистратора.
+    """
+    now_str = datetime.datetime.now().strftime(settings.TIME_FMT)
+    new_status = "abandoned" if abandoned else "closed"
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return False
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+
+        target = None
+        for g in reg.get("gaps") or []:
+            if isinstance(g, dict) and g.get("id") == gap_id:
+                target = g
+                break
+        if target is None:
+            return False
+
+        target["status"] = new_status
+        target["closed_at"] = now_str
+
+        for it in reg.get("pending_interests") or []:
+            if not isinstance(it, dict):
+                continue
+            bl = it.get("blocking_gap_ids") or []
+            if gap_id in bl:
+                it["blocking_gap_ids"] = [x for x in bl if x != gap_id]
+
+        _atomic_save_states(states)
+        logger.info(f"{reg_id}: gap id={gap_id} -> {new_status}")
+        return True
+
+
+def set_blocking_gap_ids(reg_id: str, mapping: Dict[str, List[str]]) -> None:
+    """
+    Массово выставляет blocking_gap_ids для pending_interests указанного
+    регистратора. Интересы, не упомянутые в mapping, не трогаем.
+    """
+    if not mapping:
+        return
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        changed = False
+        for it in reg.get("pending_interests") or []:
+            if not isinstance(it, dict):
+                continue
+            nm = it.get("name")
+            if nm in mapping:
+                new_ids = list(mapping[nm])
+                if it.get("blocking_gap_ids") != new_ids:
+                    it["blocking_gap_ids"] = new_ids
+                    changed = True
+        if changed:
+            _atomic_save_states(states)
+
+
+def gc_gaps(
+    reg_id: str,
+    *,
+    ttl_closed_days: int = 7,
+    ttl_abandoned_days: int = 30,
+    now: Optional[datetime.datetime] = None,
+) -> Dict[str, int]:
+    """
+    Физически удаляет из states.gaps регистратора все записи в terminal-статусе
+    (`closed` / `abandoned`), у которых `closed_at` старше заданного TTL.
+
+    Записи без корректного `closed_at` трогать не будем (безопасный выбор;
+    в нормальном потоке close_gap всегда проставляет closed_at=now).
+
+    Возвращает словарь:
+        {"closed": N, "abandoned": M}
+    — сколько записей каждого типа было удалено.
+    """
+    if now is None:
+        now = datetime.datetime.now()
+    ttl_closed = datetime.timedelta(days=max(0, int(ttl_closed_days)))
+    ttl_abnd = datetime.timedelta(days=max(0, int(ttl_abandoned_days)))
+
+    removed = {"closed": 0, "abandoned": 0}
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return removed
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        gaps: List[dict] = reg.get("gaps") or []
+        if not gaps:
+            return removed
+
+        kept: List[dict] = []
+        for g in gaps:
+            if not isinstance(g, dict):
+                continue
+            status = g.get("status")
+            if status not in ("closed", "abandoned"):
+                kept.append(g)
+                continue
+            closed_at = g.get("closed_at")
+            if not closed_at:
+                kept.append(g)
+                continue
+            try:
+                ca_dt = datetime.datetime.strptime(closed_at, settings.TIME_FMT)
+            except Exception:
+                kept.append(g)
+                continue
+            ttl = ttl_closed if status == "closed" else ttl_abnd
+            if (now - ca_dt) >= ttl:
+                removed[status] += 1
+                continue
+            kept.append(g)
+
+        if removed["closed"] or removed["abandoned"]:
+            reg["gaps"] = kept
+            _atomic_save_states(states)
+            logger.info(
+                f"{reg_id}: gc_gaps removed closed={removed['closed']}, "
+                f"abandoned={removed['abandoned']}, kept={len(kept)}"
+            )
+    return removed
+
+
+def gc_gaps_all(
+    *,
+    ttl_closed_days: int = 7,
+    ttl_abandoned_days: int = 30,
+    now: Optional[datetime.datetime] = None,
+) -> Dict[str, int]:
+    """
+    Пробегает по всем регистраторам в states.json и чистит терминальные gap'ы
+    по TTL. Возвращает агрегированную статистику удалений.
+    """
+    if now is None:
+        now = datetime.datetime.now()
+    total = {"closed": 0, "abandoned": 0, "regs": 0}
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        trucks = states.get("trucks") or {}
+        reg_ids = []
+        for tid, reg in trucks.items():
+            if not isinstance(reg, dict):
+                continue
+            mdvr = reg.get("mdvr_serial")
+            if mdvr:
+                reg_ids.append(mdvr)
+
+    for rid in reg_ids:
+        r = gc_gaps(
+            rid,
+            ttl_closed_days=ttl_closed_days,
+            ttl_abandoned_days=ttl_abandoned_days,
+            now=now,
+        )
+        total["closed"] += r.get("closed", 0)
+        total["abandoned"] += r.get("abandoned", 0)
+        if r.get("closed", 0) or r.get("abandoned", 0):
+            total["regs"] += 1
+
+    if total["closed"] or total["abandoned"]:
+        logger.info(
+            f"[gc_gaps_all] удалено closed={total['closed']}, "
+            f"abandoned={total['abandoned']} в {total['regs']} регистратор(ах)"
+        )
+    return total
+
+
+def reconcile_gaps_in_window(
+    reg_id: str,
+    detected_gaps: List[Dict[str, str]],
+    window_start: str,
+    window_end: str,
+    *,
+    points_per_gap: Optional[Dict[str, int]] = None,
+    stable_checks_threshold: int = 3,
+    now_str: Optional[str] = None,
+) -> Dict[str, List[str]]:
+    """
+    Сверяет `detected_gaps` (результат нового прогоняя `detect_gaps` по свежим
+    трекам в окне [window_start, window_end]) с текущими pending gap'ами
+    регистратора, которые ПОЛНОСТЬЮ лежат внутри этого окна.
+
+    Применяются правила:
+      * CLOSED — старый gap не пересекается ни с одним detected -> status=closed.
+      * NO CHANGE — одно пересечение, границы совпадают: checked++,
+        last_checked=now. Если `points_last_seen` не вырос —
+        `no_progress_streak++`; иначе — 0. При достижении
+        `stable_checks_threshold` -> абандон НЕ происходит здесь (решает
+        `_process_gaps_if_due`, чтобы перед abandonment дернуть alarm-fallback
+        из Этапа 2.5).
+      * SHRUNK/EXPANDED — одно пересечение с иными границами: обновляем
+        границы, checked=0, no_progress_streak=0, last_checked=now,
+        points_last_seen=points_per_gap.
+      * SPLIT — несколько пересечений: первое обновляет исходный gap (как
+        SHRUNK), остальные — НОВЫЕ pending записи с `created_at` = created_at
+        исходного gap'а.
+      * NEW — detected gap, не пересекающийся ни с одним старым в окне:
+        создаётся новая pending запись с `created_at=now`.
+
+    Для CLOSED автоматически снимается `gap_id` из `blocking_gap_ids` всех
+    pending_interests этого регистратора.
+
+    Возвращает словарь:
+        {
+            "closed": [gap_id, ...],        # переведены в closed
+            "no_progress": [gap_id, ...],   # у кого streak >= threshold
+                                            # (нужны caller'у для fallback+abandon)
+            "updated": [gap_id, ...],       # все gap_id, реально изменённые/созданные
+        }
+    """
+    if now_str is None:
+        now_str = datetime.datetime.now().strftime(settings.TIME_FMT)
+
+    try:
+        w_start_dt = datetime.datetime.strptime(window_start, settings.TIME_FMT)
+        w_end_dt = datetime.datetime.strptime(window_end, settings.TIME_FMT)
+    except Exception:
+        logger.warning(f"{reg_id}: reconcile_gaps_in_window: плохое окно [{window_start} → {window_end}]")
+        return {"closed": [], "no_progress": [], "updated": []}
+
+    pts = points_per_gap or {}
+
+    result = {"closed": [], "no_progress": [], "updated": []}
+
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            return result
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        gaps: List[dict] = reg.setdefault("gaps", [])
+
+        old_in_window: List[dict] = []
+        for g in gaps:
+            if not isinstance(g, dict):
+                continue
+            if g.get("status") != "pending":
+                continue
+            try:
+                gs = datetime.datetime.strptime(g.get("gap_start", ""), settings.TIME_FMT)
+                ge = datetime.datetime.strptime(g.get("gap_end", ""), settings.TIME_FMT)
+            except Exception:
+                continue
+            if gs >= w_start_dt and ge <= w_end_dt:
+                old_in_window.append(g)
+
+        detected_used: set[int] = set()
+        new_gaps_to_add: List[dict] = []
+
+        for g_old in old_in_window:
+            gs_old = g_old.get("gap_start", "")
+            ge_old = g_old.get("gap_end", "")
+            overlaps: List[tuple[int, Dict[str, str]]] = []
+            for i, d in enumerate(detected_gaps):
+                if i in detected_used:
+                    continue
+                if _gaps_overlap(gs_old, ge_old, d.get("gap_start", ""), d.get("gap_end", "")):
+                    overlaps.append((i, d))
+
+            gid = g_old.get("id") or ""
+            new_points = int(pts.get(gid, 0))
+
+            if not overlaps:
+                g_old["status"] = "closed"
+                g_old["closed_at"] = now_str
+                result["closed"].append(gid)
+                result["updated"].append(gid)
+                continue
+
+            if len(overlaps) == 1:
+                i, d = overlaps[0]
+                detected_used.add(i)
+                d_s = d.get("gap_start", "")
+                d_e = d.get("gap_end", "")
+                if d_s == gs_old and d_e == ge_old:
+                    prev_points = int(g_old.get("points_last_seen") or 0)
+                    g_old["checked"] = int(g_old.get("checked") or 0) + 1
+                    g_old["last_checked"] = now_str
+                    g_old["points_last_seen"] = new_points
+                    if new_points <= prev_points:
+                        g_old["no_progress_streak"] = int(g_old.get("no_progress_streak") or 0) + 1
+                    else:
+                        g_old["no_progress_streak"] = 0
+                    result["updated"].append(gid)
+                    if g_old["no_progress_streak"] >= stable_checks_threshold:
+                        result["no_progress"].append(gid)
+                else:
+                    g_old["gap_start"] = d_s
+                    g_old["gap_end"] = d_e
+                    g_old["checked"] = 0
+                    g_old["no_progress_streak"] = 0
+                    g_old["last_checked"] = now_str
+                    g_old["points_last_seen"] = new_points
+                    result["updated"].append(gid)
+                continue
+
+            i0, d0 = overlaps[0]
+            detected_used.add(i0)
+            g_old["gap_start"] = d0.get("gap_start", gs_old)
+            g_old["gap_end"] = d0.get("gap_end", ge_old)
+            g_old["checked"] = 0
+            g_old["no_progress_streak"] = 0
+            g_old["last_checked"] = now_str
+            g_old["points_last_seen"] = new_points
+            result["updated"].append(gid)
+            for (i, d) in overlaps[1:]:
+                detected_used.add(i)
+                new_g = _new_gap_record(
+                    d.get("gap_start", ""),
+                    d.get("gap_end", ""),
+                    created_at=g_old.get("created_at"),
+                )
+                new_gaps_to_add.append(new_g)
+                result["updated"].append(new_g["id"])
+
+        for i, d in enumerate(detected_gaps):
+            if i in detected_used:
+                continue
+            new_g = _new_gap_record(d.get("gap_start", ""), d.get("gap_end", ""))
+            new_gaps_to_add.append(new_g)
+            result["updated"].append(new_g["id"])
+
+        if new_gaps_to_add:
+            gaps.extend(new_gaps_to_add)
+
+        if result["closed"]:
+            closed_set = set(result["closed"])
+            for it in reg.get("pending_interests") or []:
+                if not isinstance(it, dict):
+                    continue
+                bl = it.get("blocking_gap_ids") or []
+                if bl and any(x in closed_set for x in bl):
+                    it["blocking_gap_ids"] = [x for x in bl if x not in closed_set]
+
+        _atomic_save_states(states)
+
+    if result["closed"]:
+        logger.info(
+            f"{reg_id}: reconcile_gaps_in_window [{window_start} → {window_end}]: "
+            f"closed={len(result['closed'])}, no_progress={len(result['no_progress'])}, "
+            f"updated={len(result['updated'])}"
+        )
+    elif result["updated"]:
+        logger.info(
+            f"{reg_id}: reconcile_gaps_in_window [{window_start} → {window_end}]: "
+            f"updated={len(result['updated'])}, no_progress={len(result['no_progress'])}"
+        )
+    return result
 
 
 def _dt(x: str | datetime.datetime) -> datetime:

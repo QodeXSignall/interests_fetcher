@@ -1268,6 +1268,110 @@ def find_first_stable_stop(
     return cand_start_gt
 
 
+def detect_gaps(
+    tracks: List[Dict[str, Any]],
+    window_start: str,
+    window_end: str,
+    *,
+    min_duration_sec: Optional[int] = None,
+    ignore_stationary: Optional[bool] = None,
+    edge_ignore: Optional[bool] = None,
+    reg_id: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """
+    Детектит разрывы в треках внутри окна [window_start, window_end].
+
+    Возвращает отсортированный список словарей:
+        [{"gap_start": "YYYY-MM-DD HH:MM:SS", "gap_end": "YYYY-MM-DD HH:MM:SS"}, ...]
+
+    Правила:
+      * gap учитывается, если delta между соседними треками >= min_duration_sec;
+      * оба конца пары должны находиться внутри окна (edge_ignore);
+      * если ignore_stationary и оба соседних трека помечены как стоянка
+        (ls == 4 и es != 0) — разрыв пропускаем.
+
+    Треки на входе — это raw-список из cms_gate (`tracks`), у каждого элемента
+    есть поле `gt` в формате settings.TIME_FMT. Треки вне окна игнорируются.
+    """
+    TIME_FMT = settings.TIME_FMT
+
+    if min_duration_sec is None:
+        min_duration_sec = settings.config.getint(
+            "Interests", "GAP_MIN_DURATION_SEC", fallback=120
+        )
+    if ignore_stationary is None:
+        ignore_stationary = settings.config.getboolean(
+            "Interests", "GAP_IGNORE_STATIONARY", fallback=True
+        )
+    if edge_ignore is None:
+        edge_ignore = settings.config.getboolean(
+            "Interests", "GAP_EDGE_IGNORE", fallback=True
+        )
+
+    if not tracks or not isinstance(tracks, list):
+        return []
+
+    try:
+        w_start = datetime.datetime.strptime(window_start, TIME_FMT)
+        w_end = datetime.datetime.strptime(window_end, TIME_FMT)
+    except Exception as e:
+        logger.warning(
+            f"{reg_id}: detect_gaps: некорректные границы окна "
+            f"[{window_start} → {window_end}]: {e}"
+        )
+        return []
+
+    if w_end <= w_start:
+        return []
+
+    parsed: List[Tuple[datetime.datetime, Dict[str, Any]]] = []
+    for t in tracks:
+        gt = (t or {}).get("gt")
+        if not isinstance(gt, str):
+            continue
+        try:
+            dt = datetime.datetime.strptime(gt, TIME_FMT)
+        except Exception:
+            continue
+        if edge_ignore and (dt < w_start or dt > w_end):
+            continue
+        parsed.append((dt, t))
+
+    parsed.sort(key=lambda x: x[0])
+
+    def _is_stationary(t: Dict[str, Any]) -> bool:
+        ls = t.get("ls")
+        es = t.get("es")
+        try:
+            ls_ok = int(ls) == 4
+        except Exception:
+            ls_ok = False
+        try:
+            es_ok = int(es) != 0
+        except Exception:
+            es_ok = False
+        return ls_ok and es_ok
+
+    gaps: List[Dict[str, str]] = []
+    for i in range(len(parsed) - 1):
+        dt_prev, t_prev = parsed[i]
+        dt_next, t_next = parsed[i + 1]
+
+        delta = (dt_next - dt_prev).total_seconds()
+        if delta < min_duration_sec:
+            continue
+
+        if ignore_stationary and _is_stationary(t_prev) and _is_stationary(t_next):
+            continue
+
+        gaps.append({
+            "gap_start": dt_prev.strftime(TIME_FMT),
+            "gap_end": dt_next.strftime(TIME_FMT),
+        })
+
+    return gaps
+
+
 def seconds_since_midnight(dt: datetime.datetime) -> int:
     midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
     delta = dt - midnight

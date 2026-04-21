@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from interests_fetcher.data import settings as app_settings
 from interests_fetcher.logger import logger
 
 
@@ -37,14 +36,13 @@ def default_local_truck_record() -> Dict[str, Any]:
         "ignore": False,
         "interests": [],
         "last_upload_time": last_upload_str,
-        "verified_until": last_upload_str,
-        "verified_until_long": last_upload_str,
         "by_trigger": 1,
         "by_stops": 0,
         "by_door_limit_switch": 0,
         "by_lifting_limit_switch": 1,
         "continuous": 0,
         "pending_interests": [],
+        "gaps": [],
         "truck_info": {},
     }
 
@@ -131,22 +129,8 @@ def ensure_truck_info_defaults(truck: Dict[str, Any]) -> bool:
     return changed
 
 
-def ensure_local_verified_long(truck: Dict[str, Any]) -> bool:
-    """verified_until_long на уровне записи трака."""
-    changed = False
-    if "verified_until_long" not in truck:
-        vt = truck.get("verified_until")
-        if vt:
-            truck["verified_until_long"] = vt
-        else:
-            last_upload = datetime.datetime.today() - datetime.timedelta(days=7)
-            truck["verified_until_long"] = last_upload.strftime(app_settings.TIME_FMT)
-        changed = True
-    return changed
-
-
 def ensure_truck_structure_inplace(truck: Dict[str, Any]) -> bool:
-    ch = ensure_truck_info_defaults(truck) or ensure_local_verified_long(truck)
+    ch = ensure_truck_info_defaults(truck)
     if "pending_interests" not in truck:
         truck["pending_interests"] = []
         ch = True
@@ -156,6 +140,13 @@ def ensure_truck_structure_inplace(truck: Dict[str, Any]) -> bool:
     if "interests" not in truck:
         truck["interests"] = []
         ch = True
+    if "gaps" not in truck:
+        truck["gaps"] = []
+        ch = True
+    for legacy_key in ("verified_until", "verified_until_long"):
+        if legacy_key in truck:
+            del truck[legacy_key]
+            ch = True
     return ch
 
 
@@ -175,8 +166,6 @@ def merge_local_truck_state_prefer_canonical(into: Dict[str, Any], orphan: Dict[
         "ignore",
         "interests",
         "last_upload_time",
-        "verified_until",
-        "verified_until_long",
         "by_trigger",
         "by_stops",
         "by_door_limit_switch",
@@ -194,6 +183,15 @@ def merge_local_truck_state_prefer_canonical(into: Dict[str, Any], orphan: Dict[
             p_into.append(x)
             seen.add(x.get("name"))
     into["pending_interests"] = p_into
+
+    g_into = list(into.get("gaps") or [])
+    g_old = list(orphan.get("gaps") or [])
+    seen_ids = {g.get("id") for g in g_into if isinstance(g, dict)}
+    for g in g_old:
+        if isinstance(g, dict) and g.get("id") and g.get("id") not in seen_ids:
+            g_into.append(g)
+            seen_ids.add(g.get("id"))
+    into["gaps"] = g_into
 
 
 def ensure_truck_row_for_mdvr(
@@ -356,6 +354,16 @@ def consolidate_trucks_by_mdvr(states: Dict[str, Any]) -> bool:
                 pending_k.append(p)
                 seen.add(p.get("name"))
         krow["pending_interests"] = pending_k
+
+        gaps_k = list(krow.get("gaps") or [])
+        gaps_o = list((row or {}).get("gaps") or [])
+        seen_g = {g.get("id") for g in gaps_k if isinstance(g, dict)}
+        for g in gaps_o:
+            if isinstance(g, dict) and g.get("id") and g.get("id") not in seen_g:
+                gaps_k.append(g)
+                seen_g.add(g.get("id"))
+        krow["gaps"] = gaps_k
+
         to_del.append(str(tid))
         changed = True
     for d in to_del:

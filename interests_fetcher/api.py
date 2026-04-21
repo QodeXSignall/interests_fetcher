@@ -116,32 +116,57 @@ async def get_reg_id_by_car_num_cms(car_num: str) -> Optional[str]:
 
 
 async def resolve_reg_id(reg_id: Optional[str], car_num: Optional[str]) -> str:
-    """Определяет reg_id из reg_id или car_num (сначала локально, затем через cms_gate)"""
+    """
+    Определяет DevIDNO регистратора для вызовов cms_gate.
+
+    Приоритет:
+      1) reg_id (передали напрямую — считаем, что уже DevIDNO);
+      2) локальный поиск в states.json по госномеру;
+      3) cms_gate vehicle manager / список устройств.
+
+    Если по госномеру ничего не нашли, возбуждаем 422 — **не** падаем в
+    silent fallback «плейт -> reg_id», иначе CMS получит кириллический
+    vehiIdno и ответит пустыми треками/алармами.
+    """
     from interests_fetcher.logger import logger
-    
+
     if reg_id:
         return reg_id
-    
-    if car_num:
-        # 1) Сначала ищем локально в states.json
-        found_reg_id = get_reg_id_by_car_num_local(car_num)
-        if found_reg_id:
-            logger.info(f"[resolve_reg_id] Found in states.json: {car_num} -> {found_reg_id}")
-            return found_reg_id
 
-        # 2) Запрос через cms_gate
-        found_reg_id = await get_reg_id_by_car_num_cms(car_num)
-        if found_reg_id:
-            logger.info(f"[resolve_reg_id] Found via cms_gate: {car_num} -> {found_reg_id}")
-            return found_reg_id
-        
-        # 3) Last fallback: используем сам car_num как reg_id (может совпадать с DevIDNO)
-        logger.info(f"[resolve_reg_id] Not found, using car_num as reg_id: {car_num}")
-        return car_num
-    
+    if not car_num:
+        raise HTTPException(
+            status_code=422,
+            detail="Either 'reg_id' or 'car_num' must be provided",
+        )
+
+    found_reg_id = get_reg_id_by_car_num_local(car_num)
+    if found_reg_id:
+        logger.info(f"[resolve_reg_id] Found in states.json: {car_num} -> {found_reg_id}")
+        return found_reg_id
+
+    try:
+        truck = await cms_gate_client.get_truck_by_plate(car_num)
+    except Exception as e:
+        logger.warning(f"[resolve_reg_id] get_truck_by_plate failed for {car_num!r}: {e!r}")
+        truck = None
+    if truck:
+        mdvr = truck.get("mdvr") or {}
+        mid = mdvr.get("id") if isinstance(mdvr, dict) else None
+        if mid:
+            logger.info(f"[resolve_reg_id] Found via cms_gate trucks: {car_num} -> {mid}")
+            return str(mid)
+
+    found_reg_id = await get_reg_id_by_car_num_cms(car_num)
+    if found_reg_id:
+        logger.info(f"[resolve_reg_id] Found via cms_gate devices: {car_num} -> {found_reg_id}")
+        return found_reg_id
+
     raise HTTPException(
         status_code=422,
-        detail="Either 'reg_id' or 'car_num' must be provided"
+        detail=(
+            f"Не удалось сопоставить госномер {car_num!r} с DevIDNO. "
+            f"Заведите ТС в cms_gate (POST /api/v1/trucks) или передайте reg_id явно."
+        ),
     )
 
 

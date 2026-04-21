@@ -11,3 +11,4 @@ venv/
 .env.local
 interests_fetcher/data/states.json
 interests_fetcher/data/states*.json
+misc/output/
