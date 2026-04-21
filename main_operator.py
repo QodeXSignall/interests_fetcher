@@ -1071,6 +1071,94 @@ class Main:
         except Exception:
             return datetime.datetime.max  # если испорченный интерес — обрабатываем в самом конце
 
+    @staticmethod
+    def _interest_duration_min(it: dict) -> float | None:
+        """Длительность интереса в минутах по start_time / end_time. None если не удалось распарсить."""
+        try:
+            s = datetime.datetime.strptime(it.get("start_time", ""), settings.TIME_FMT)
+            e = datetime.datetime.strptime(it.get("end_time", ""), settings.TIME_FMT)
+        except Exception:
+            return None
+        return (e - s).total_seconds() / 60.0
+
+    def _interest_too_long(self, it: dict) -> bool:
+        """True если длительность интереса превышает INTEREST_MAX_DURATION_MIN."""
+        max_min = settings.config.getint(
+            "Interests", "INTEREST_MAX_DURATION_MIN", fallback=40
+        )
+        dur = self._interest_duration_min(it)
+        return dur is not None and dur > max_min
+
+    def _interest_out_of_attempts(self, it: dict) -> bool:
+        """True если для интереса уже израсходован бюджет попыток download-clips."""
+        max_attempts = settings.config.getint(
+            "Interests", "INTEREST_MAX_DOWNLOAD_ATTEMPTS", fallback=5
+        )
+        attempts = it.get("download_attempts")
+        if not isinstance(attempts, int):
+            return False
+        return attempts >= max_attempts
+
+    def _drop_dead_letter_pending(self, reg_id: str, pending: list[dict]) -> list[dict]:
+        """
+        Убирает из pending и удаляет из states.json записи, которые:
+          - длиннее INTEREST_MAX_DURATION_MIN (мусор, скорее всего alarm-склейка или битый merge);
+          - превысили бюджет попыток download-clips (dead-letter).
+        Возвращает «живой» остаток pending.
+        """
+        if not pending:
+            return pending
+        max_min = settings.config.getint(
+            "Interests", "INTEREST_MAX_DURATION_MIN", fallback=40
+        )
+        max_attempts = settings.config.getint(
+            "Interests", "INTEREST_MAX_DOWNLOAD_ATTEMPTS", fallback=5
+        )
+        survivors: list[dict] = []
+        for it in pending:
+            if not isinstance(it, dict):
+                continue
+            name = it.get("name") or "?"
+            if self._interest_too_long(it):
+                dur = self._interest_duration_min(it)
+                logger.warning(
+                    f"{reg_id}: dead-letter (too_long): выбрасываем {name!r} "
+                    f"длительность={dur:.1f}мин > {max_min}мин "
+                    f"[{it.get('start_time')} .. {it.get('end_time')}]"
+                )
+                logger.info(
+                    pipeline_event(
+                        "interest_dead_letter",
+                        reg_id=str(reg_id),
+                        interest=str(name),
+                        reason="too_long",
+                        duration_min=round(dur, 2) if dur is not None else None,
+                        max_duration_min=max_min,
+                    )
+                )
+                self.del_pending_interest(reg_id, it)
+                continue
+            if self._interest_out_of_attempts(it):
+                attempts = it.get("download_attempts", 0)
+                logger.warning(
+                    f"{reg_id}: dead-letter (out_of_attempts): выбрасываем {name!r} "
+                    f"download_attempts={attempts} >= {max_attempts}"
+                )
+                logger.info(
+                    pipeline_event(
+                        "interest_dead_letter",
+                        reg_id=str(reg_id),
+                        interest=str(name),
+                        reason="out_of_attempts",
+                        attempts=attempts,
+                        max_attempts=max_attempts,
+                    )
+                )
+                self.del_pending_interest(reg_id, it)
+                continue
+            survivors.append(it)
+        return survivors
+
     def _log_interests_shape(self, reg_id: str, stage: str, interests):
         sample_type = "n/a"
         sample_repr = "n/a"
@@ -1116,7 +1204,42 @@ class Main:
             logger.warning(f"{reg_id}: [{stage}] отфильтрованы не-dict элементы в списке интересов")
         if not cleaned:
             return []
-        return merge_overlapping_interests(cleaned)
+        merged = merge_overlapping_interests(cleaned)
+        # Отсекаем интересы длиннее INTEREST_MAX_DURATION_MIN (обычно это
+        # слипшиеся alarm-монстры или сутки-в-одном-интересе). До pending такие
+        # доходить не должны: CMS их не отдаёт, они блокируют очередь.
+        max_min = settings.config.getint(
+            "Interests", "INTEREST_MAX_DURATION_MIN", fallback=40
+        )
+        survivors: list[dict] = []
+        dropped = 0
+        for it in merged or []:
+            dur = self._interest_duration_min(it)
+            if dur is not None and dur > max_min:
+                dropped += 1
+                logger.warning(
+                    f"{reg_id}: [{stage}] отбрасываем слишком длинный интерес "
+                    f"{it.get('name')!r} длительность={dur:.1f}мин > {max_min}мин "
+                    f"[{it.get('start_time')} .. {it.get('end_time')}]"
+                )
+                logger.info(
+                    pipeline_event(
+                        "interest_dropped_pre_pending",
+                        reg_id=str(reg_id),
+                        stage=str(stage),
+                        interest=str(it.get("name") or ""),
+                        reason="too_long",
+                        duration_min=round(dur, 2),
+                        max_duration_min=max_min,
+                    )
+                )
+                continue
+            survivors.append(it)
+        if dropped:
+            logger.info(
+                f"{reg_id}: [{stage}] санитарный фильтр длины: оставили {len(survivors)}, выкинули {dropped}"
+            )
+        return survivors
 
     async def download_reg_videos(self, reg_id, plate):
         logger.debug(f"{reg_id}. Начинаем работу с устройством.")
@@ -1143,6 +1266,12 @@ class Main:
         if not pending:
             await self._refill_pending_interests_if_due(reg_id)     # Извлечь новые интересы из CMS
             pending = main_funcs.get_pending_interests(reg_id)
+
+        # Санитарный фильтр: отсекаем и сразу удаляем из states.json мусорные
+        # интересы (слишком длинные) и те, что уже израсходовали бюджет попыток.
+        # Делается ДО pessimistic/merge, иначе один такой «монстр» может
+        # стоять головой очереди бесконечно.
+        pending = self._drop_dead_letter_pending(reg_id, pending)
 
         # --- Этап 3: pessimistic publication ---
         # Отсекаем интересы, у которых blocking_gap_ids непустой: внутри/рядом
@@ -1333,29 +1462,68 @@ class Main:
             round_delay = float(
                 settings.config.get("Interests", "DOWNLOAD_INTEREST_ROUND_DELAY_SEC", fallback="20")
             )
+            max_attempts = settings.config.getint(
+                "Interests", "INTEREST_MAX_DOWNLOAD_ATTEMPTS", fallback=5
+            )
             channels_files_dict: dict = {}
             t_dl = time.perf_counter()
-            for round_i in range(1, download_rounds + 1):
-                channels_files_dict = await cms_gate_client.download_clips_for_interest(
-                    reg_id=reg_id,
-                    interest=interest,
-                    channels=final_channels_to_download,
-                )
-                if _all_requested_paths_present(channels_files_dict):
-                    break
-                if round_i < download_rounds:
-                    missing = [
-                        ch
-                        for ch in final_channels_to_download
-                        if not (channels_files_dict.get(ch) or channels_files_dict.get(str(ch)) or {}).get(
-                            "path"
-                        )
-                    ]
-                    logger.warning(
-                        f"{reg_id}: {interest_name} раунд {round_i}/{download_rounds}: нет path по каналам "
-                        f"{missing} — повтор через {round_delay * round_i:.0f}s"
+            try:
+                for round_i in range(1, download_rounds + 1):
+                    channels_files_dict = await cms_gate_client.download_clips_for_interest(
+                        reg_id=reg_id,
+                        interest=interest,
+                        channels=final_channels_to_download,
                     )
-                    await asyncio.sleep(min(120.0, round_delay * round_i))
+                    if _all_requested_paths_present(channels_files_dict):
+                        break
+                    if round_i < download_rounds:
+                        missing = [
+                            ch
+                            for ch in final_channels_to_download
+                            if not (channels_files_dict.get(ch) or channels_files_dict.get(str(ch)) or {}).get(
+                                "path"
+                            )
+                        ]
+                        logger.warning(
+                            f"{reg_id}: {interest_name} раунд {round_i}/{download_rounds}: нет path по каналам "
+                            f"{missing} — повтор через {round_delay * round_i:.0f}s"
+                        )
+                        await asyncio.sleep(min(120.0, round_delay * round_i))
+            except Exception as exc:
+                # Сеть/5xx/таймаут — учёт попыток. Исчерпали бюджет → dead-letter.
+                attempts = main_funcs.inc_pending_download_attempts(reg_id, interest_name)
+                logger.warning(
+                    f"{reg_id}: download_clips_for_interest упал для {interest_name!r}: {exc!r}. "
+                    f"download_attempts={attempts}/{max_attempts}"
+                )
+                if attempts >= max_attempts:
+                    logger.error(
+                        f"{reg_id}: dead-letter (out_of_attempts): {interest_name!r} "
+                        f"исчерпал {max_attempts} попыток download-clips, удаляем из pending."
+                    )
+                    logger.info(
+                        pipeline_event(
+                            "interest_dead_letter",
+                            reg_id=str(reg_id),
+                            interest=str(interest_name),
+                            reason="out_of_attempts",
+                            attempts=attempts,
+                            max_attempts=max_attempts,
+                        )
+                    )
+                    self.del_pending_interest(reg_id, interest)
+                logger.info(
+                    pipeline_event(
+                        "interest_outcome",
+                        reg_id=str(reg_id),
+                        interest=str(interest_name),
+                        outcome="fail_download_clips",
+                        attempts=attempts,
+                        max_attempts=max_attempts,
+                        pending_cleared=attempts >= max_attempts,
+                    )
+                )
+                raise
             elapsed_dl = time.perf_counter() - t_dl
             missing_after = [
                 ch

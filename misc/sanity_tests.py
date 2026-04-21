@@ -506,7 +506,125 @@ def test_fallback_disabled_returns_empty():
 
 
 # =============================================================================
-# 5) pessimistic publication (мини-unit на предикате filter)
+# 5) dead-letter / max duration
+# =============================================================================
+
+def test_append_pending_initializes_deadletter_fields():
+    main_funcs.set_pending_interests(REG, [])
+    main_funcs.append_pending_interests(REG, [
+        {
+            "name": "DL_INIT_1",
+            "reg_id": REG,
+            "start_time": "2026-04-20 10:00:00",
+            "end_time": "2026-04-20 10:20:00",
+        }
+    ])
+    pending = main_funcs.get_pending_interests(REG)
+    rec = next(it for it in pending if it.get("name") == "DL_INIT_1")
+    assert rec.get("download_attempts") == 0, rec
+    assert rec.get("last_download_error_at") is None, rec
+    assert rec.get("blocking_gap_ids") == [], rec
+
+
+def test_inc_pending_download_attempts():
+    main_funcs.set_pending_interests(REG, [])
+    main_funcs.append_pending_interests(REG, [
+        {
+            "name": "DL_INC_1",
+            "reg_id": REG,
+            "start_time": "2026-04-20 10:00:00",
+            "end_time": "2026-04-20 10:20:00",
+        }
+    ])
+    n1 = main_funcs.inc_pending_download_attempts(REG, "DL_INC_1")
+    n2 = main_funcs.inc_pending_download_attempts(REG, "DL_INC_1")
+    n3 = main_funcs.inc_pending_download_attempts(REG, "DL_INC_1")
+    assert (n1, n2, n3) == (1, 2, 3), (n1, n2, n3)
+    pending = main_funcs.get_pending_interests(REG)
+    rec = next(it for it in pending if it.get("name") == "DL_INC_1")
+    assert rec.get("download_attempts") == 3
+    assert rec.get("last_download_error_at") is not None
+    missing = main_funcs.inc_pending_download_attempts(REG, "NOPE")
+    assert missing == 0
+
+
+def test_drop_dead_letter_pending():
+    """_drop_dead_letter_pending должен выбрасывать слишком длинные и out_of_attempts."""
+    from main_operator import Main
+    inst = Main.__new__(Main)
+    inst.TIME_FMT = TIME_FMT
+
+    main_funcs.set_pending_interests(REG, [])
+    ok_item = {
+        "name": "OK_SHORT",
+        "reg_id": REG,
+        "start_time": "2026-04-20 10:00:00",
+        "end_time": "2026-04-20 10:20:00",
+    }
+    too_long = {
+        "name": "TOO_LONG",
+        "reg_id": REG,
+        "start_time": "2026-04-20 10:00:00",
+        "end_time": "2026-04-20 12:00:00",  # 120 min > 40
+    }
+    exhausted = {
+        "name": "EXHAUSTED",
+        "reg_id": REG,
+        "start_time": "2026-04-20 10:00:00",
+        "end_time": "2026-04-20 10:10:00",
+        "download_attempts": 7,
+    }
+    main_funcs.append_pending_interests(REG, [ok_item, too_long, exhausted])
+
+    survivors = inst._drop_dead_letter_pending(REG, main_funcs.get_pending_interests(REG))
+    names = [it.get("name") for it in survivors]
+    assert names == ["OK_SHORT"], names
+
+    remaining = [it.get("name") for it in main_funcs.get_pending_interests(REG)]
+    assert remaining == ["OK_SHORT"], remaining
+
+
+def test_merge_safe_drops_overlong():
+    """_merge_interests_safe должен отбрасывать слишком длинные интересы после merge."""
+    from main_operator import Main
+    inst = Main.__new__(Main)
+    inst.TIME_FMT = TIME_FMT
+
+    def _mk(name, start, end):
+        s_dt = datetime.datetime.strptime(start, TIME_FMT)
+        e_dt = datetime.datetime.strptime(end, TIME_FMT)
+        day_start = s_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        return {
+            "name": name,
+            "reg_id": REG,
+            "start_time": start,
+            "end_time": end,
+            "year": s_dt.year,
+            "month": s_dt.month,
+            "day": s_dt.day,
+            "beg_sec": (s_dt - day_start).total_seconds(),
+            "end_sec": (e_dt - day_start).total_seconds(),
+            "car_number": "SAN000",
+            "photo_before_timestamp": start,
+            "photo_after_timestamp": end,
+            "photo_before_sec": (s_dt - day_start).total_seconds(),
+            "photo_after_sec": (e_dt - day_start).total_seconds(),
+            "report": {"switch_events": []},
+        }
+
+    raw = [
+        _mk("SHORT_OK", "2026-04-20 10:00:00", "2026-04-20 10:20:00"),
+        _mk("LONG_MONSTER", "2026-04-20 10:30:00", "2026-04-21 10:30:00"),  # 24h
+    ]
+    result = inst._merge_interests_safe(REG, "TEST_STAGE", raw)
+    names = [it.get("name") for it in result]
+    assert not any(n == "LONG_MONSTER" or "LONG_MONSTER" in (n or "") for n in names), names
+    assert len(result) == 1, names
+    assert result[0]["start_time"] == "2026-04-20 10:00:00"
+
+
+# =============================================================================
+# 6) pessimistic publication (мини-unit на предикате filter)
 # =============================================================================
 
 def test_pessimistic_filter_logic():
@@ -559,6 +677,10 @@ def main():
         ("gc_gaps.skip_no_closed_at", test_gc_gaps_skips_pending_and_no_closed_at),
         ("fallback.happy_path_and_filters", test_fallback_happy_path_and_filters),
         ("fallback.disabled", test_fallback_disabled_returns_empty),
+        ("deadletter.init_fields", test_append_pending_initializes_deadletter_fields),
+        ("deadletter.inc_attempts", test_inc_pending_download_attempts),
+        ("deadletter.drop_pending", test_drop_dead_letter_pending),
+        ("deadletter.merge_safe_drops_overlong", test_merge_safe_drops_overlong),
         ("pessimistic.filter_logic", test_pessimistic_filter_logic),
     ]
 

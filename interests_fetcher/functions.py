@@ -592,6 +592,11 @@ def append_pending_interests(reg_id: str, interests: list[dict]) -> None:
             # по умолчанию — интерес ничем не заблокирован
             if "blocking_gap_ids" not in it or not isinstance(it.get("blocking_gap_ids"), list):
                 it["blocking_gap_ids"] = []
+            # dead-letter-счётчики для download-clips (см. inc_pending_download_attempts)
+            if not isinstance(it.get("download_attempts"), int):
+                it["download_attempts"] = 0
+            if "last_download_error_at" not in it:
+                it["last_download_error_at"] = None
             cur.append(it)
             seen.add(nm)
         reg["pending_interests"] = cur
@@ -607,6 +612,43 @@ def remove_pending_interest(reg_id: str, interest_name: str) -> None:
         cur = reg.get("pending_interests", [])
         reg["pending_interests"] = [it for it in cur if it.get("name") != interest_name]
         _atomic_save_states(states)
+
+
+def inc_pending_download_attempts(reg_id: str, interest_name: str) -> int:
+    """
+    Атомарно увеличивает download_attempts у pending_interest с данным name
+    и обновляет last_download_error_at. Если запись не найдена — возвращает 0.
+    """
+    if not interest_name:
+        return 0
+    now_str = datetime.datetime.now().strftime(settings.TIME_FMT)
+    with FileLock(LOCK_PATH):
+        states = _load_states()
+        tid = find_truck_id_by_mdvr(states, reg_id)
+        if tid is None:
+            logger.warning(
+                f"{reg_id}: inc_pending_download_attempts -> регистратор не найден в states.json"
+            )
+            return 0
+        ensure_alarms_structure_inplace(states, reg_id)
+        reg = states["trucks"][tid]
+        cur = reg.get("pending_interests", []) or []
+        new_value = 0
+        for it in cur:
+            if not isinstance(it, dict):
+                continue
+            if it.get("name") != interest_name:
+                continue
+            prev = it.get("download_attempts")
+            if not isinstance(prev, int):
+                prev = 0
+            new_value = prev + 1
+            it["download_attempts"] = new_value
+            it["last_download_error_at"] = now_str
+            break
+        reg["pending_interests"] = cur
+        _atomic_save_states(states)
+        return new_value
 
 
 # ---------------------------------------------------------------------------
