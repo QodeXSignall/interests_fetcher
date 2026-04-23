@@ -1467,8 +1467,39 @@ class Main:
             )
             channels_files_dict: dict = {}
             t_dl = time.perf_counter()
+
+            # Перед каждым (включая первый) раундом сверяемся, что устройство
+            # сейчас online. Это отсекает серии DeviceOfflineError-ретраев
+            # внутри cms_gate_client (по 5 подряд), когда регистратор ушёл
+            # оффлайн до или во время скачивания.
+            async def _skip_if_offline(round_i: int) -> bool:
+                try:
+                    online = await cms_gate_client.is_device_online(reg_id)
+                except Exception:
+                    online = True  # fail-open
+                if not online:
+                    logger.info(
+                        f"{reg_id}: {interest_name} раунд {round_i}/{download_rounds}: "
+                        f"устройство offline — пропускаем раунд, интерес остаётся в pending."
+                    )
+                    logger.info(
+                        pipeline_event(
+                            "interest_download_skipped_offline",
+                            reg_id=str(reg_id),
+                            interest=str(interest_name),
+                            round=round_i,
+                            rounds_max=download_rounds,
+                        )
+                    )
+                    return True
+                return False
+
             try:
+                offline_skipped = False
                 for round_i in range(1, download_rounds + 1):
+                    if await _skip_if_offline(round_i):
+                        offline_skipped = True
+                        break
                     channels_files_dict = await cms_gate_client.download_clips_for_interest(
                         reg_id=reg_id,
                         interest=interest,
@@ -1489,6 +1520,13 @@ class Main:
                             f"{missing} — повтор через {round_delay * round_i:.0f}s"
                         )
                         await asyncio.sleep(min(120.0, round_delay * round_i))
+
+                if offline_skipped:
+                    # Интерес оставляем в pending, attempts НЕ инкрементим —
+                    # это не ошибка обработки, а объективная недоступность DVR.
+                    # Вернёмся к нему в следующем цикле, когда устройство
+                    # снова окажется online.
+                    return interest["end_time"]
             except Exception as exc:
                 # Сеть/5xx/таймаут — учёт попыток. Исчерпали бюджет → dead-letter.
                 attempts = main_funcs.inc_pending_download_attempts(reg_id, interest_name)

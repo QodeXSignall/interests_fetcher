@@ -81,6 +81,31 @@ def _auth_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def is_device_online(reg_id: str, timeout_sec: float = 30.0) -> bool:
+    """
+    Быстрая проверка: числится ли устройство reg_id в CMS как online прямо сейчас.
+
+    Используется перед дорогими операциями (download-clips-for-interest), чтобы
+    не тратить секунды/минуты на заведомо провальные запросы к оффлайн-устройству.
+
+    Если запрос к cms_gate падает — считаем online=True (fail-open), чтобы
+    сетевой сбой не блокировал работу пайплайна.
+    """
+    try:
+        devices = await list_devices(status="online", timeout_sec=timeout_sec)
+    except Exception as e:
+        logger.warning(
+            f"[cms_gate_client] is_device_online({reg_id}) failed, fail-open as online: {e!r}"
+        )
+        return True
+    target = str(reg_id)
+    for d in devices or []:
+        did = str((d or {}).get("did") or (d or {}).get("id") or "")
+        if did == target:
+            return True
+    return False
+
+
 async def list_devices(status: str = "all", timeout_sec: float = 180.0) -> List[Dict[str, Any]]:
     """
     Список устройств: GET /devices (синхронный ответ, без очереди).
