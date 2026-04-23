@@ -740,6 +740,11 @@ def find_interests_by_lifting_switches(
             logger.debug(f"Для начала пойдем вперед по трекам и найдем момент, когда машина двинулась")
             move_started_at = None
             move_started_at_str = None
+            # Антизалипание: на части ТС концевик может "залипать" в 1 во время движения.
+            # В таком случае не игнорируем скорость полностью — подтверждаем движение
+            # по устойчивому превышению MIN_MOVE_SPEED в течение MIN_MOVE_DURATION_SEC.
+            move_while_switch_on_started_at = None
+            move_while_switch_on_started_at_str = None
             while lifting_end_idx + 1 < len(tracks):
                 next_track = tracks[lifting_end_idx + 1]
                 next_s1 = next_track.get("s1")
@@ -765,6 +770,28 @@ def find_interests_by_lifting_switches(
 
                 # 1) если сработал концевик — фиксируем и продолжаем расширять окно
                 if next_bits[euro_bit_idx] == '1' or (kgo_bit_idx is not None and next_bits[kgo_bit_idx] == '1'):
+                    # Концевик активен, но скорость уже выше порога.
+                    # Подтверждаем движение по времени даже при "залипшем" IO.
+                    if next_spd >= min_move_speed:
+                        if move_while_switch_on_started_at is None:
+                            move_while_switch_on_started_at = ts
+                            move_while_switch_on_started_at_str = sw_time
+                            logger.debug(
+                                f"{reg_id}: [Конец интереса] IO=1, но скорость >= порога. "
+                                f"Старт подтверждения движения: {move_while_switch_on_started_at_str}"
+                            )
+                        elif ts - move_while_switch_on_started_at >= int(min_move_duration):
+                            move_started_at = move_while_switch_on_started_at
+                            move_started_at_str = move_while_switch_on_started_at_str
+                            logger.warning(
+                                f"{reg_id}: [Конец интереса] Подтвердили движение при IO=1 "
+                                f"(возможное залипание концевика): move_started_at={move_started_at_str}, "
+                                f"min_move_duration={min_move_duration}s"
+                            )
+                            break
+                    else:
+                        move_while_switch_on_started_at = None
+                        move_while_switch_on_started_at_str = None
                     lifting_end_idx += 1
                     if next_bits[euro_bit_idx] == '1':
                         switch_events.append({"datetime": sw_time, "switch": euro_bit_idx})
@@ -776,6 +803,8 @@ def find_interests_by_lifting_switches(
                 elif next_spd < min_move_speed:
                     lifting_end_idx += 1
                     move_started_at = None
+                    move_while_switch_on_started_at = None
+                    move_while_switch_on_started_at_str = None
 
                 # 3) скорость выше порога — проверяем длительность устойчивого движения
                 else:
@@ -794,6 +823,16 @@ def find_interests_by_lifting_switches(
                          f"last_switch_index={last_switch_index}, move_started_at={move_started_at_str}")
             time_after, last_stop_idx = find_stop_after_lifting(tracks, last_switch_index + 1, settings, logger, reg_id)
             used_fallback = False
+
+            # Если движение уже подтверждено в текущем цикле (в т.ч. при IO=1),
+            # но find_stop_after_lifting не смог подтвердить его вторично,
+            # используем подтверждённый момент как time_after.
+            if (not time_after) and move_started_at_str:
+                logger.warning(
+                    f"{reg_id}: [AFTER] find_stop_after_lifting не подтвердил движение, "
+                    f"берем подтвержденный момент из основного цикла: {move_started_at_str}"
+                )
+                time_after = move_started_at_str
 
             if not time_after:
                 # Фоллбэк ТОЛЬКО если давно нет новых треков (последний трек старше 30 минут)
