@@ -9,6 +9,18 @@ venv/
 *.xml
 .env
 .env.local
+.DS_Store
+.claude/
+__pycache__/
 interests_fetcher/data/states.json
 interests_fetcher/data/states*.json
 misc/output/
+
+# new_alg: код коммитим, дампы данных и вспомогательные артефакты — нет
+interests_fetcher/new_alg/raw_data/
+interests_fetcher/new_alg/validate_results.json
+interests_fetcher/new_alg/open_issues.md
+interests_fetcher/new_alg/*.pdf
+interests_fetcher/output/videos/
+interests_fetcher/output/*.docx
+interests_fetcher/logs/*.code-workspace

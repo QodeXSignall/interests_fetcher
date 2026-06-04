@@ -4,6 +4,7 @@ from interests_fetcher.functions import parse_interest_name
 from interests_fetcher.qt_rm_client import QTRMAsyncClient
 from interests_fetcher import functions as main_funcs
 from interests_fetcher import cloud_uploader
+from interests_fetcher.new_alg import adapter as new_alg_adapter
 import time
 
 from interests_fetcher.logger import logger, pipeline_event
@@ -1020,18 +1021,110 @@ class Main:
                 reg_id=reg_id
             )
 
-            try:
-                interests = cms_api_funcs.find_interests_by_lifting_switches(
-                    tracks=tracks,
-                    start_tracks_search_time=start_time_dt,
-                    reg_id=reg_id,
-                    alarms=prepared,
-                )
-            except cms_api_funcs.LoadingInProgress:
-                logger.info("Прерываем обработку интересов потому что машина грузится в это время ")
+            # Какой алгоритм отдаём наверх: новый new_alg или legacy
+            # find_interests_by_lifting_switches. Управляется флагом
+            # [Interests] USE_NEW_ALGORITHM в config.cfg.
+            #
+            # SHADOW_NEW_ALGORITHM=true — гоняем оба алгоритма и логируем дифф.
+            # Не влияет на то, чей результат отдаётся вверх (это решает USE_NEW_ALGORITHM).
+            # Работает в обе стороны: и для проверки нового пока legacy основной,
+            # и как сейф-нет когда новый уже основной.
+            use_new = settings.config.getboolean(
+                "Interests", "USE_NEW_ALGORITHM", fallback=False
+            )
+            shadow_new = settings.config.getboolean(
+                "Interests", "SHADOW_NEW_ALGORITHM", fallback=False
+            )
+
+            new_interests = None
+            new_alg_err = None
+            if use_new or shadow_new:
+                last_track_dt = None
+                if tracks:
+                    try:
+                        last_track_dt = datetime.datetime.strptime(
+                            tracks[-1].get("gt", ""), self.TIME_FMT
+                        )
+                    except Exception:
+                        last_track_dt = None
+                try:
+                    new_interests = new_alg_adapter.find_interests_legacy_compat(
+                        tracks=tracks,
+                        raw_alarms=all_alarms,
+                        reg_info=reg_info,
+                        reg_id=reg_id,
+                        last_track_dt=last_track_dt,
+                    )
+                except cms_api_funcs.LoadingInProgress:
+                    new_alg_err = "LoadingInProgress"
+                except Exception as e:
+                    new_alg_err = f"{type(e).__name__}: {e}"
+                    logger.exception(f"{reg_id}: [new_alg] неожиданная ошибка")
+
+            # Legacy запускаем если: (1) он основной, или (2) shadow-замер, или
+            # (3) новый упал с неожиданной ошибкой — нужен аварийный fallback.
+            need_legacy = (
+                (not use_new) or
+                shadow_new or
+                (new_alg_err is not None and new_alg_err != "LoadingInProgress")
+            )
+            legacy_interests_obj = None
+            if need_legacy:
+                try:
+                    legacy_interests_obj = cms_api_funcs.find_interests_by_lifting_switches(
+                        tracks=tracks,
+                        start_tracks_search_time=start_time_dt,
+                        reg_id=reg_id,
+                        alarms=prepared,
+                    )
+                except cms_api_funcs.LoadingInProgress:
+                    if not use_new or new_alg_err == "LoadingInProgress":
+                        # legacy — единственный авторитет, его LoadingInProgress пробрасываем
+                        logger.info("Прерываем обработку интересов потому что машина грузится в это время ")
+                        if return_raw:
+                            return [], None, None
+                        return {"error": "Loading in progress"}
+                    # use_new=true, shadow=true: legacy ушёл в LoadingInProgress,
+                    # но решение принимает new — игнорируем legacy-исключение.
+                    legacy_interests_obj = {"interests": []}
+
+            # Решаем что отдавать наверх.
+            if use_new and new_alg_err == "LoadingInProgress":
+                logger.info("Прерываем обработку интересов потому что машина грузится в это время (new_alg)")
                 if return_raw:
                     return [], None, None
                 return {"error": "Loading in progress"}
+
+            if use_new and new_alg_err is None:
+                interests = {"interests": new_interests or []}
+            elif use_new and new_alg_err is not None:
+                logger.warning(
+                    f"{reg_id}: [new_alg] упал ({new_alg_err}) — fallback на legacy"
+                )
+                interests = legacy_interests_obj
+            else:
+                interests = legacy_interests_obj
+
+            # Shadow-замер: дифф «legacy vs new» в логи. Никак не влияет на результат.
+            if shadow_new and new_alg_err is None and legacy_interests_obj is not None:
+                legacy_list = (
+                    legacy_interests_obj.get("interests")
+                    if isinstance(legacy_interests_obj, dict) else legacy_interests_obj
+                ) or []
+                try:
+                    diff = new_alg_adapter.diff_for_shadow(legacy_list, new_interests or [])
+                    logger.info(
+                        f"{reg_id}: [shadow] window={start_time}..{stop_time} "
+                        f"legacy={diff['legacy_count']} new={diff['new_count']} "
+                        f"common={diff['common']} only_legacy={len(diff['only_legacy'])} "
+                        f"only_new={len(diff['only_new'])}"
+                    )
+                    if diff["only_legacy"]:
+                        logger.info(f"{reg_id}: [shadow] only_legacy: {diff['only_legacy']}")
+                    if diff["only_new"]:
+                        logger.info(f"{reg_id}: [shadow] only_new: {diff['only_new']}")
+                except Exception:
+                    logger.exception(f"{reg_id}: [shadow] diff failed")
 
             if isinstance(interests, dict) and "interests" in interests:
                 found_interests = interests["interests"]
