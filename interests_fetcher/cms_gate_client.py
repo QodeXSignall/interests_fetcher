@@ -16,6 +16,16 @@ from interests_fetcher.logger import logger, pipeline_event
 _client: Optional[httpx.AsyncClient] = None
 
 
+class DeviceOfflineFromGate(RuntimeError):
+    """cms_gate явно сообщил, что устройство offline (HTTP 503 + kind=device_offline).
+
+    Бросается из download_clips_for_interest вместо HTTPStatusError, чтобы
+    main_operator мог отличить «устройство недоступно» от ошибки обработки и
+    НЕ инкрементировал download_attempts (interest остаётся в pending до
+    возврата устройства в online).
+    """
+
+
 def _get_base_url() -> str:
     """
     Базовый URL cms_gate.
@@ -407,6 +417,38 @@ async def download_clips_for_interest(
             continue
 
         assert resp is not None
+
+        # Spec: cms_gate возвращает 503 со структурированным JSON
+        # {"kind":"device_offline", ...} когда CMS подтвердил offline-устройство.
+        # Это НЕ ошибка обработки — нет смысла ретраить 5 минут, и main_operator
+        # должен оставить интерес в pending без инкремента attempts.
+        if resp.status_code == 503:
+            kind = None
+            try:
+                ct = resp.headers.get("content-type", "")
+                if ct.startswith("application/json"):
+                    body_json = resp.json()
+                    if isinstance(body_json, dict):
+                        kind = body_json.get("kind")
+            except Exception:
+                kind = None
+            if kind == "device_offline":
+                logger.info(
+                    f"[cms_gate_client] req_id={req_id} cms_gate -> 503 device_offline; "
+                    f"оставляем интерес {interest_name} в pending без счётчика попыток"
+                )
+                logger.info(
+                    pipeline_event(
+                        "fetcher_http_download_clips_device_offline",
+                        req_id=req_id,
+                        reg_id=str(reg_id),
+                        interest=str(interest_name or ""),
+                    )
+                )
+                raise DeviceOfflineFromGate(
+                    f"cms_gate reports device {reg_id} offline (req_id={req_id})"
+                )
+
         if resp.status_code in (429, 500, 502, 503, 504):
             last_err = None
             body_preview = (resp.text or "")[:500]

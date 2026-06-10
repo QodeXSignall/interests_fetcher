@@ -1620,6 +1620,24 @@ class Main:
                     # Вернёмся к нему в следующем цикле, когда устройство
                     # снова окажется online.
                     return interest["end_time"]
+            except cms_gate_client.DeviceOfflineFromGate as exc:
+                # cms_gate подтвердил, что DVR offline (даже если /devices
+                # показал online). Это не наша ошибка — НЕ инкрементируем
+                # attempts, оставляем интерес в pending, попробуем снова
+                # в следующем цикле когда устройство вернётся в сеть.
+                logger.info(
+                    f"{reg_id}: {interest_name!r} cms_gate device_offline — "
+                    f"оставляем в pending без счётчика попыток ({exc})"
+                )
+                logger.info(
+                    pipeline_event(
+                        "interest_download_skipped_offline",
+                        reg_id=str(reg_id),
+                        interest=str(interest_name),
+                        source="cms_gate_503",
+                    )
+                )
+                return interest["end_time"]
             except Exception as exc:
                 # Сеть/5xx/таймаут — учёт попыток. Исчерпали бюджет → dead-letter.
                 attempts = main_funcs.inc_pending_download_attempts(reg_id, interest_name)
